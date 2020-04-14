@@ -4,20 +4,25 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-int main(int argc, char **argv) {
-    char buff[4096];
+using namespace std;
 
+int main() {
+    char buff[4096];
     struct sockaddr_in caddr;
-    struct sockaddr_in saddr = {.sin_family = AF_INET,
-                                .sin_port = htons(80),
-                                .sin_addr.s_addr = htonl(INADDR_ANY)};
+    struct sockaddr_in saddr;
+
+    caddr.sin_family = AF_INET;
+    caddr.sin_port = htons(80);
+    caddr.sin_addr.s_addr = htonl(INADDR_ANY);
 
     int server = socket(AF_INET, SOCK_STREAM, 0);
     int client, x;
-    int csize = sizeof(caddr);
+    socklen_t csize = sizeof(caddr);
 
     bind(server, (struct sockaddr *)&saddr, sizeof(saddr));
     listen(server, 5);
+
+    cout << "Pai tá online\n\n";
 
     while (1) {
         client = accept(server, (struct sockaddr *)&caddr, &csize);
@@ -28,6 +33,8 @@ int main(int argc, char **argv) {
         puts(buff);
         fflush(stdout);
     }
+
+    close(server);
 
     return 0;
 }

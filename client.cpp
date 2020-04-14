@@ -1,5 +1,6 @@
 #include <arpa/inet.h>
 #include <iostream>
+#include <netdb.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -10,11 +11,9 @@ using namespace std;
 
 int main(int argc, char **argv) {
 
-    ios_base::sync_with_stdio(false);
-    cin.tie(NULL);
-
     string message;
-    unsigned int server_ip;
+    uint32_t server_ip;
+    struct hostent *hostent_pointer;
 
     // Gets input from user to determine the server adress
     cout << "IP address of server (without dots): ";
@@ -29,15 +28,17 @@ int main(int argc, char **argv) {
     net_socket = socket(AF_INET, SOCK_STREAM, 0);
 
     // Specify server address
-    struct sockaddr_in server_address = {.sin_family = AF_INET,
-                                         .sin_port = htons(SERVER_PORT),
-                                         .sin_addr.s_addr = htonl(server_ip)};
+    struct sockaddr_in server_address;
+    server_address.sin_family = AF_INET;
+    server_address.sin_port = htons(SERVER_PORT);
+    // server_address.sin_addr.s_addr = inet_addr("127.0.0.1");
+    inet_addr("127.0.0.1", &server_address.sin_addr.s_addr);
 
     int connect_status = connect(net_socket, (struct sockaddr *)&server_address,
                                  sizeof(server_address));
     // Check for error with connection
     if (connect_status == -1) {
-        cerr << "Fudeu\n";
+        cerr << "Fudeu pq a gente nao perguntou pro giovaninni\n";
     }
 
     const char *buff = message.c_str();
