@@ -1,51 +1,53 @@
 #include <arpa/inet.h>
+#include <errno.h>
 #include <iostream>
 #include <netdb.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <unistd.h>
 
-#define SERVER_PORT 80
-
+#define SERVER_PORT 9000
 using namespace std;
 
-int main(int argc, char **argv) {
+int main() {
 
-    string message;
-    uint32_t server_ip;
+    int my_socket;
+    char buffer[4096];
+    struct sockaddr_in server_address;
     struct hostent *hostent_pointer;
-
-    // Gets input from user to determine the server adress
-    cout << "IP address of server (without dots): ";
-    cin >> server_ip;
-    cout << "\n\n";
-
-    // Gets the message from the client
-    cin >> message;
+    char message[4096];
 
     // Create a socket
-    int net_socket;
-    net_socket = socket(AF_INET, SOCK_STREAM, 0);
+    my_socket = socket(AF_INET, SOCK_STREAM, 0);
 
     // Specify server address
-    struct sockaddr_in server_address;
     server_address.sin_family = AF_INET;
     server_address.sin_port = htons(SERVER_PORT);
-    // server_address.sin_addr.s_addr = inet_addr("127.0.0.1");
-    inet_addr("127.0.0.1", &server_address.sin_addr.s_addr);
+    server_address.sin_addr.s_addr = INADDR_ANY;
 
-    int connect_status = connect(net_socket, (struct sockaddr *)&server_address,
-                                 sizeof(server_address));
-    // Check for error with connection
-    if (connect_status == -1) {
-        cerr << "Fudeu pq a gente nao perguntou pro giovaninni\n";
+    // Gets the message from the client
+    cout << "Enter in some data: ";
+    cin >> message;
+    cout << "\n\n\n";
+
+    int status = connect(my_socket, (struct sockaddr *)&server_address,
+                         sizeof(server_address));
+
+    // Checks for error with connection
+    if (status == -1) {
+        cerr << "Cê foi de base ein garotinho.\n";
+        return 1;
     }
 
-    const char *buff = message.c_str();
+    // Sends the message to the server
+    send(my_socket, &message, sizeof(message), 0);
 
-    // Send the data from the server
-    send(net_socket, &buff, sizeof(buff), 0);
+    // Gets response from server
+    recv(my_socket, &buffer, sizeof(buffer), 0);
 
-    close(net_socket);
+    cout << "O SERVER MANDOU A SEGUINTE PIKA: " << buffer;
+
+    close(my_socket);
+
     return 0;
 }

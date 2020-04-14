@@ -4,37 +4,38 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#define SERVER_PORT 9000
 using namespace std;
 
 int main() {
-    char buff[4096];
-    struct sockaddr_in caddr;
-    struct sockaddr_in saddr;
 
-    caddr.sin_family = AF_INET;
-    caddr.sin_port = htons(80);
-    caddr.sin_addr.s_addr = htonl(INADDR_ANY);
+    int listener_socket;
+    int client_socket;
+    char buffer[4096]; // PARALELIZAR O BUFFER DEPOIS
+    struct sockaddr_in server_address;
 
-    int server = socket(AF_INET, SOCK_STREAM, 0);
-    int client, x;
-    socklen_t csize = sizeof(caddr);
+    listener_socket = socket(AF_INET, SOCK_STREAM, 0);
 
-    bind(server, (struct sockaddr *)&saddr, sizeof(saddr));
-    listen(server, 5);
+    server_address.sin_family = AF_INET;
+    server_address.sin_port = htons(SERVER_PORT);
+    server_address.sin_addr.s_addr = INADDR_ANY;
+
+    bind(listener_socket, (struct sockaddr *)&server_address,
+         sizeof(server_address));
+
+    listen(listener_socket, 5);
 
     cout << "Pai tá online\n\n";
 
     while (1) {
-        client = accept(server, (struct sockaddr *)&caddr, &csize);
-        x = recv(client, buff, sizeof(buff), 0);
-
-        send(client, buff, x, 0);
-
-        puts(buff);
+        client_socket = accept(listener_socket, NULL, NULL);
+        int msg_len = recv(client_socket, buffer, sizeof(buffer), 0);
+        send(client_socket, buffer, msg_len, 0); // echo
+        puts(buffer);
         fflush(stdout);
     }
 
-    close(server);
+    close(listener_socket);
 
     return 0;
 }
