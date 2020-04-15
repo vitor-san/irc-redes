@@ -1,3 +1,4 @@
+#include "defs.h"
 #include <arpa/inet.h>
 #include <iostream>
 #include <netdb.h>
@@ -8,26 +9,12 @@
 
 using namespace std;
 
-/*
- *   Check for errors. If any, print them to stderr and exit the program.
- *   Parameters:
- *       status (int): status to be checked (only -1 represents an error).
- *       msg (const char array): message to be printed to stderr if an error is
- *   encountered.
- */
-void check_error(int status, const char *msg) {
-    if (status == -1) {
-        perror(msg);
-        exit(EXIT_FAILURE);
-    }
-}
-
 int main(int argc, const char **argv) {
 
     int my_socket, server_port;
-    char buffer_in[4096];
-    char buffer_out[4096];
     struct sockaddr_in server_address;
+    buffer buff_in, buff_out;
+    string message = "";
     // struct hostent *hosts;
 
     // Check if input is valid
@@ -42,6 +29,10 @@ int main(int argc, const char **argv) {
     // Stores server name to connect to
     // hosts =
 
+    // Creates the input and output buffers
+    buff_in = new_buff();
+    buff_out = new_buff();
+
     // Create a socket
     my_socket = socket(AF_INET, SOCK_STREAM, 0);
     check_error(my_socket, "Socket creation failed");
@@ -52,20 +43,21 @@ int main(int argc, const char **argv) {
     server_address.sin_addr.s_addr = INADDR_ANY;
 
     // Gets the message from the client
-    cout << "Enter in some data: ";
-    cin >> buffer_out;
+    cout << "Enter a message: ";
+    getline(cin, message);
+    put_buff(buff_out, message);
 
     int status = connect(my_socket, (struct sockaddr *)&server_address,
                          sizeof(server_address));
     check_error(status, "Connection failed");
 
     // Sends the message to the server
-    send(my_socket, &buffer_out, sizeof(buffer_out), 0);
+    send(my_socket, buff_out.data(), BUFF_SIZE, 0);
 
     // Gets response from server
-    recv(my_socket, &buffer_in, sizeof(buffer_in), 0);
+    recv(my_socket, buff_in.data(), BUFF_SIZE, 0);
 
-    cout << "Response from server: " << buffer_in << endl;
+    cout << "Response from server: " << buff_in.data() << endl;
 
     close(my_socket);
 
