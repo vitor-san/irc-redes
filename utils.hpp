@@ -3,7 +3,8 @@
 
 #include <string>
 
-#define MSG_SIZE 4097
+#define MSG_SIZE 4095 // Limit of characters for a single message
+#define MAX_RET 5     // Maximum number of retransmissions per client
 
 /*
  *   Check for errors. If any, print them to stderr and exit the program.

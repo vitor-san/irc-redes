@@ -4,25 +4,38 @@
 
 using namespace std;
 
-int main() {
+int main(int argc, const char **argv) {
 
-    int bytes_in;
-    string buff_in, buff_out;
+    uint16_t server_port;
+    string in_buff, out_buff; // Vao precisar ser replicados para cada conexao depois (quando tiver varios clientes)
 
-    Socket listener("any", 9001);
+    // Check if args are valid
+    if (argc < 2) {
+        fprintf(stderr, "Not enough arguments.\nUsage format: %s {port}\n", argv[0]);
+        exit(EXIT_FAILURE);
+    }
+    // Convert the port to an integer
+    server_port = atoi(argv[1]);
+
+    Socket listener("any", server_port);
 
     // Open server for, at most, 10 connections
-    listener.open_listen(10);
+    listener.listening(10);
 
-    cout << "Pai tá online.\n"; // Remove later
+    cout << "Pai tá online.\n"; // Remove this later
 
     Socket *client;
     while (true) {
         client = listener.accept_connection();
-        client->receive_message(buff_in);
-        client->send_message(buff_in); // echo
-        cout << buff_in << endl;
-        buff_in.clear();
+        while (client->receive_message_on(in_buff)) {
+            bool success = client->send_message_from(in_buff);
+            if (!success) { // The server wasn't able to send the message
+                delete client;
+                continue;
+            }
+
+            cout << "\n" << in_buff << "\n";
+        }
         delete client;
     }
 
