@@ -1,53 +1,30 @@
-#include "defs.h"
-#include <arpa/inet.h>
+#include "socket.hpp"
+#include "utils.hpp"
 #include <iostream>
-#include <sys/socket.h>
-#include <sys/types.h>
-#include <unistd.h>
 
 using namespace std;
 
 int main() {
 
-    int listener_socket, client_socket, status, bytes_in;
-    struct sockaddr_in server_address;
-    buffer buff_in, buff_out;
-    const string greetings = "You've successfully connected to an IRC server!";
+    int bytes_in;
+    string buff_in, buff_out;
 
-    // Creates the input and output buffers
-    buff_in = new_buff();
-    buff_out = new_buff();
+    Socket listener("any", 9001);
 
-    // Creates the listener socket
-    listener_socket = socket(AF_INET, SOCK_STREAM, 0);
-    check_error(listener_socket, "Socket creation failed");
+    // Open server for, at most, 10 connections
+    listener.open_listen(10);
 
-    // Specify server address
-    server_address.sin_family = AF_INET;
-    server_address.sin_port = htons(SERVER_PORT);
-    server_address.sin_addr.s_addr = INADDR_ANY;
+    cout << "Pai tá online.\n"; // Remove later
 
-    // Binds socket to the server address
-    status = bind(listener_socket, (struct sockaddr *)&server_address,
-                  sizeof(server_address));
-    check_error(status, "Binding failed");
-
-    // Listen for incoming connections, accepting no more than 10 connections at
-    // the same time
-    status = listen(listener_socket, 10);
-    check_error(status, "Listening failed");
-
-    cout << "Pai tá online\n"; // Remove later
-
+    Socket *client;
     while (true) {
-        client_socket = accept(listener_socket, NULL, NULL);
-        int msg_len = recv(client_socket, buff_in.data(), BUFF_SIZE, 0);
-        send(client_socket, buff_in.data(), msg_len, 0); // echo
-        puts(buff_in.data());
-        fflush(stdout);
+        client = listener.accept_connection();
+        client->receive_message(buff_in);
+        client->send_message(buff_in); // echo
+        cout << buff_in << endl;
+        buff_in.clear();
+        delete client;
     }
-
-    close(listener_socket);
 
     return 0;
 }

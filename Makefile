@@ -1,10 +1,7 @@
 all: server client
 
-build: main.cpp
-	g++ main.cpp -o irc
+server: server.cpp socket.cpp utils.cpp
+	g++ server.cpp socket.cpp utils.cpp -o server
 
-server: server.cpp defs.cpp
-	g++ server.cpp defs.cpp -o server
-
-client: client.cpp defs.cpp
-	g++ client.cpp defs.cpp -o client
+client: client.cpp socket.cpp utils.cpp
+	g++ client.cpp socket.cpp utils.cpp -o client
