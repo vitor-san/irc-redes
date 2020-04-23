@@ -1,13 +1,13 @@
 #include "socket.hpp"
-#include <iostream>
 
-Socket::Socket() {
-    this->target_socket_fd = socket(AF_INET, SOCK_STREAM, 6); // Using TCP Protocol
-    this->target_address.sin_family = 0;
-    this->target_address.sin_port = 0;
-    this->target_address.sin_addr.s_addr = 0;
-}
+// Default constructor. Not used here.
+Socket::Socket() {}
 
+/*
+ *   Initializes a socket object with a previous allocated socket.
+ *   Parameters:
+ *      target_fd (int): the previous allocated socket file descriptor
+ */
 Socket::Socket(int target_fd) {
     this->target_socket_fd = target_fd;
     this->target_address.sin_family = 0;
@@ -15,6 +15,14 @@ Socket::Socket(int target_fd) {
     this->target_address.sin_addr.s_addr = 0;
 }
 
+/*
+ *   Sets the ip and the port of the target socket.
+ *   Parameters:
+ *       ip (string): the ip to be setted; if "any" set it to INADDR_ANY; if "localhost" set it to 127.0.0.1.
+ *       port (uint16_t): the port to be setted.
+ *   Returns:
+ *       bool: whether or not the operation was successful.
+ */
 bool Socket::set_target(std::string ip, uint16_t port) {
     this->target_address.sin_port = htons(port);
 
@@ -30,6 +38,11 @@ bool Socket::set_target(std::string ip, uint16_t port) {
     return true;
 }
 
+/*
+ *   Initializes a socket object with an specific address (IP + port) as it's target.
+ *   Please refer to "set_target" documentation for more information on format
+ *   and treatment of the parameters.
+ */
 Socket::Socket(std::string ip, uint16_t port) {
     this->target_socket_fd = socket(AF_INET, SOCK_STREAM, 6); // Using TCP Protocol
     this->target_address.sin_family = AF_INET;
@@ -38,6 +51,13 @@ Socket::Socket(std::string ip, uint16_t port) {
     }
 }
 
+/*
+ *   Makes the socket enters into a listening state, with 'max_connections' connections at the same time.
+ *   Parameters:
+ *       max_connections (int): the maximum number of connections that the socket can hold at any given time.
+ *   Returns:
+ *       bool: whether or not the operation was successful.
+ */
 bool Socket::listening(int max_connections) {
     int status_bind =
         bind(this->target_socket_fd, (struct sockaddr *)&(this->target_address), sizeof(this->target_address));
@@ -50,12 +70,25 @@ bool Socket::listening(int max_connections) {
     return true;
 }
 
+/*
+ *   Waits until a new connection is tried by a client application.
+ *   Then, allocates a new socket to conversate with that client.
+ *   Note that the new socket may be in another port
+ *   (i.e. different from where the listening socket was estabilished on).
+ *   Returns:
+ *       Socket: the target socket, now connected.
+ */
 Socket *Socket::accept_connection() {
     int new_socket_fd = accept(this->target_socket_fd, NULL, NULL);
     Socket *s = new Socket(new_socket_fd);
     return s;
 }
 
+/*
+ *   Try a connection with the target socket.
+ *   Returns:
+ *       bool: whether or not the operation was successful.
+ */
 bool Socket::connect_to_target() {
     int status =
         connect(this->target_socket_fd, (struct sockaddr *)&(this->target_address), sizeof(this->target_address));
@@ -63,15 +96,22 @@ bool Socket::connect_to_target() {
     return status == -1 ? false : true;
 }
 
+/*
+ *   Try to send a message through the socket. If the message surpass 4096 characters, it is splited into chunks of 4096
+ *   characters each (including \0), and send one by one.
+ *   Parameters:
+ *      buffer (string): The text to be sent.
+ *   Returns:
+ *      bool: whether or not the operation was successful.
+ */
 bool Socket::send_message_from(std::string buffer) {
     int msg_len, chunk_len, start, attempts, status;
 
     msg_len = buffer.size();
     if (buffer[msg_len - 1] == '\0')
         msg_len--;
-    // std::cout << "Message size: " << msg_len << std::endl;
+
     int n_chunks = int(ceil((double)msg_len / MSG_SIZE)); // -1 to make '\0' fit in the end
-    // std::cout << "Number of chunks: " << n_chunks << std::endl;
 
     char chunks[n_chunks][MSG_SIZE + 1];
 
@@ -95,13 +135,18 @@ bool Socket::send_message_from(std::string buffer) {
 
         if (attempts == MAX_RET)
             return false; // Couldn't transmit the message properly
-
-        // std::cout << "Number of attemps: " << attempts + 1 << std::endl; // Remove this later
     }
 
     return true; // Message transmitted properly
 }
 
+/*
+ *   Receives a message from the target socket.
+ *   Parameters:
+ *      buffer (string): the message will be saved here
+ *   Returns:
+ *      bool: the number of bytes read
+ */
 int Socket::receive_message_on(std::string &buffer) {
     const char *c_msg = new char[MSG_SIZE + 1];
 
@@ -123,4 +168,5 @@ int Socket::receive_message_on(std::string &buffer) {
     return status;
 }
 
+// Destructor method
 Socket::~Socket() { close(this->target_socket_fd); }
