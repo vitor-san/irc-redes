@@ -12,9 +12,9 @@ Projeto da Disciplina **SSC0142 - Redes de Computadores (2020)**, no qual implem
 
 ## Como usar
 
-Para testar o código, compile o código com o comando `make all`.
-Depois, digite `./server [port]` em um terminal, sendo port uma porta disponível (e.g. 9001), para abrir um servidor.
-Para enviar as mensagens, utilize, em outro terminal, o comando `./client localhost [port]`, sendo port a mesma usada anteriormente. Isso executará um cliente que irá se conectar ao servidor aberto anteriormente.
+Para testar o código, compile-o com o comando `make all`.<br/>
+Depois, digite `./server [port]` em um terminal, sendo port uma porta disponível (e.g. 9001), para abrir um servidor.<br/>
+Para enviar as mensagens, utilize, em outro terminal, o comando `./client localhost [port]`, sendo port a mesma usada anteriormente. Isso executará um cliente que irá se conectar ao servidor aberto anteriormente.<br/>
 Por fim, basta enviar as mensagens, e o servidor irá enviá-las de volta (ou seja, este é um **servidor de echo**).
 
 ## Aviso
