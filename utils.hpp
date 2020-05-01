@@ -4,7 +4,7 @@
 #include <regex>
 #include <string>
 
-#define MSG_SIZE 4095          // Limit of characters for a single message
+#define MSG_SIZE 2047          // Limit of characters for a single message
 #define MAX_RET 5              // Maximum number of retransmissions per client
 #define RGX_CMD "^\\s*/(\\w+)" // Regex to find command given by user in a message
 

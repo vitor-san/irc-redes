@@ -40,7 +40,7 @@ void send_message(Socket *s) {
 void receive_message(Socket *s) {
     string buffer;
     while (running && (s->receive_message_on(buffer) > 0)) {
-        cout << RES << buffer << "\n\n";
+        cout << "\n" << RES << buffer << "\n\n";
     }
 }
 
