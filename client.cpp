@@ -1,5 +1,6 @@
 #include "socket.hpp"
 #include "utils.hpp"
+#include <csignal>
 #include <iostream>
 #include <mutex>
 #include <netdb.h>
@@ -13,6 +14,8 @@ using namespace std;
 mutex mtx; // Control of critical regions. Resembles a semaphore.
 bool running = true;
 
+void handleCtrlC(int signum) { cout << "Please, use the /quit command.\n"; }
+
 void send_message(Socket *s) {
     string buffer, cmd;
     regex r(RGX_CMD); // RGX_CMD defined in "utils.hpp"
@@ -25,10 +28,8 @@ void send_message(Socket *s) {
         // Parses the message, searching for commands
         regex_search(buffer, m, r);
         cmd = m[1].str(); // Gets first command found, if any
-        // If any commands where found (following RGX_CMD rules), then execute them
+        // If any command where found (following RGX_CMD rules), then execute it
         if (cmd != "") {
-            // For testing purposes, where going to handle just the "/quit" command for now
-            // (although it's just a test and may not reflect on the final implementation)
             if (cmd == "quit")
                 exit(EXIT_SUCCESS);
         }
@@ -53,6 +54,10 @@ int main(int argc, const char **argv) {
         fprintf(stderr, "Not enough arguments.\nUsage format: %s {host-ip} {port}\n", argv[0]);
         exit(EXIT_FAILURE);
     }
+
+    // Register signal SIGINT and signal handler
+    signal(SIGINT, handleCtrlC);
+
     // Convert the port to an integer
     server_port = atoi(argv[2]);
     // Store server's IP address
