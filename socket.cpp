@@ -97,7 +97,7 @@ bool Socket::connect_to_target() {
 }
 
 /*
- *   Try to send a message through the socket. If the message surpass 4096 characters, it is splited into chunks of 4096
+ *   Try to send a message through the socket. If the message surpass 2048 characters, it is splited into chunks of 2048
  *   characters each (including \0), and send one by one.
  *   Parameters:
  *      buffer (string): The text to be sent.
@@ -105,47 +105,21 @@ bool Socket::connect_to_target() {
  *      bool: whether or not the operation was successful.
  */
 bool Socket::send_message_from(std::string buffer) {
-    int msg_len, chunk_len, start, attempts, status;
+    const char *msg = buffer.c_str();
 
-    msg_len = buffer.size();
-    if (buffer[msg_len - 1] == '\0')
-        msg_len--;
-
-    int n_chunks = int(ceil((double)msg_len / MSG_SIZE)); // -1 to make '\0' fit in the end
-
-    char chunks[n_chunks][MSG_SIZE + 1];
-
-    for (int i = 0; i < n_chunks; i++) {
-        start = i * MSG_SIZE;
-
-        if (i + 1 == n_chunks) // Last chunck
-            chunk_len = msg_len - start;
-        else
-            chunk_len = MSG_SIZE;
-
-        buffer.copy(chunks[i], chunk_len, start);
-        chunks[i][chunk_len] = '\0';
-
-        for (attempts = 0; attempts < MAX_RET; attempts++) {
-            status = send(this->target_socket_fd, chunks[i], strlen(chunks[i]) + 1, 0);
-            check_error(status, -1, "Message delivery failed");
-            if (status != -1)
-                break; // Message sent successfully
-        }
-
-        if (attempts == MAX_RET)
-            return false; // Couldn't transmit the message properly
-    }
-
-    return true; // Message transmitted properly
+    int status = send(this->target_socket_fd, msg, strlen(msg) + 1, 0);
+    check_error(status, -1, "Message delivery failed");
+    if (status == -1)
+        return false; // Error
+    return true;
 }
 
 /*
  *   Receives a message from the target socket.
  *   Parameters:
- *      buffer (string): the message will be saved here
+ *      buffer (string): the message will be saved here.
  *   Returns:
- *      bool: the number of bytes read
+ *      int: the number of bytes read. Returns -1 in case of an error.
  */
 int Socket::receive_message_on(std::string &buffer) {
     const char *c_msg = new char[MSG_SIZE + 1];

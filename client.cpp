@@ -6,15 +6,11 @@
 #include <netdb.h>
 #include <thread>
 
-#define REQ "" // Message request marker
-#define RES "" // Message response marker
-
 using namespace std;
 
-mutex mtx; // Control of critical regions. Resembles a semaphore.
 bool running = true;
 
-void handleCtrlC(int signum) { cout << "Please, use the /quit command.\n"; }
+void handleCtrlC(int signum) { cout << "\nPlease, use the /quit command.\n"; }
 
 void send_message(Socket *s) {
     string buffer, cmd;
@@ -23,25 +19,34 @@ void send_message(Socket *s) {
 
     while (running) {
         // Get the message from the client and store it in the buffer
-        cout << REQ;
         getline(cin, buffer);
         // Parses the message, searching for commands
         regex_search(buffer, m, r);
         cmd = m[1].str(); // Gets first command found, if any
         // If any command where found (following RGX_CMD rules), then execute it
         if (cmd != "") {
-            if (cmd == "quit")
+            if (cmd == "quit") {
+                running = false;
                 exit(EXIT_SUCCESS);
+            }
+        } else {
+            // Regular message
+            vector<char[MSG_SIZE]> chunks = break_msg(buffer);
+            for (int i = 0; i < chunks.size(); i++) {
+                // Send the message to the server
+                string chunk = chunks[i];
+                s->send_message_from(chunk);
+                cout << endl << "MANDEI MSG PRO SERVER HAHA" << endl;
+            }
         }
-        // Send the message to the server
-        s->send_message_from(buffer);
     }
 }
 
 void receive_message(Socket *s) {
     string buffer;
-    while (running && (s->receive_message_on(buffer) > 0)) {
-        cout << "\n" << RES << buffer << "\n\n";
+    // while an error or quit doesn't occur
+    while (running && s->receive_message_on(buffer) != -1) {
+        cout << buffer << endl;
     }
 }
 
