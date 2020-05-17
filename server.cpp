@@ -6,6 +6,7 @@
 
 using namespace std;
 
+// unordered map -> chave: Socket, dado: sockets_threads
 struct sockets_threads {
     thread *send_t;
     thread *receive_t;
@@ -26,10 +27,10 @@ struct sockets_threads {
 //-thread do listener -> main
 // vector de struct que tera ponteiro que thread que envia e thread que recebe
 
-// WARNING: Only sends chunks of 2047 chars.
-bool sendChunk(string &in_buff, Socket *client) {
+// WARNING: Only send chunks of, at maximum, 2047 chars.
+bool send_chunk(string &chunk, Socket *client) {
     // Tries to send the message chunk to the client
-    bool success = client->send_message_from(in_buff);
+    bool success = client->send_message_from(chunk);
     if (!success) { // The server wasn't able to send the message
         return false;
     }
@@ -76,10 +77,10 @@ int main(int argc, const char **argv) {
                     cout << "Client disconnected" << endl;
                     success = false;
                 } else if (cmd == "ping") {
-                    success = sendChunk(pongMsg, client);
+                    success = send_chunk(pongMsg, client);
                 }
             } else {
-                success = sendChunk(in_buff, client);
+                success = send_chunk(in_buff, client);
             }
             if (!success) {
                 cout << "AAAAH" << endl;
