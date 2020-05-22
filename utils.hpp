@@ -19,6 +19,14 @@
  */
 void check_error(int status, int error_num, const char *msg);
 
-std::vector<char[MSG_SIZE]> break_msg(std::string msg);
+/*
+ *   Breaks the message into chunks of, at max, MSG_SIZE+1 chars (including '\0').
+ *   Parameters:
+ *       msg (string): message to be broken in smaller parts (if possible).
+ *   Returns:
+ *       vector<char[MSG_SIZE+1]>: vector containing all chunks of the
+ *   partitionated message.
+ */
+std::vector<char[MSG_SIZE + 1]> break_msg(std::string msg);
 
 #endif

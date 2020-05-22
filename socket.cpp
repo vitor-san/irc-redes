@@ -128,7 +128,7 @@ int Socket::receive_message_on(std::string &buffer) {
     check_error(status, -1, "Failed to receive message");
 
     if (status != -1) {
-        if (buffer.size() != status)
+        if ((int)buffer.size() != status)
             buffer.resize(status);
 
         for (int i = 0; i < status; i++) {

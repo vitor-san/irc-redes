@@ -1,32 +1,25 @@
 #include "socket.hpp"
 #include "utils.hpp"
 #include <iostream>
-#include <list>
 #include <mutex>
 #include <queue>
 #include <thread>
+#include <unordered_map>
 
 #define MAX_CONN 10
-using namespace std;
+#define SERVER_PORT 9001
+#define client_hash unordered_map<Socket *, string>
+#define c_socket first
+#define c_nick second
 
-struct msg_info {
-    string nickname_sender;
-    string content;
-};
+using namespace std;
 
 mutex mtx; // Control of critical regions. Resembles a semaphore.
 
-// TO DO:
-
-// FILA DE MENSAGENS:
-//-fila de mensagens a serem enviadas para todos -> msg: identificador de quem mandou, msg em si
-//-a thread de cada soquete vai mandar para o client com quem esta conectado todas as mensagens desta fila
-//-se uma thread receber do cliente uma mensagem, adiciona a fila de mensagens tal mensagem a ser mandada para todos
-//-LOGO, NA INSERCAO NA FILA USAR MUTEX -> REGIAO CRITICA
-
-// THREADS
-// 1 thread geral para enviar a fila de mensagens em broadcast
-// 1 thread para cada socket para receber mensagens
+struct msg_info {
+    // string nickname_sender;
+    string content;
+};
 
 // WARNING: Only send chunks of, at maximum, 2047 chars.
 bool send_chunk(string &chunk, Socket *client) {
@@ -35,10 +28,10 @@ bool send_chunk(string &chunk, Socket *client) {
     return client->send_message_from(chunk);
 }
 
-// THREAD DE CADA SOQUETE
-void receive_from_client(Socket *client) {
+void receive_client_thread(Socket *client, client_hash &clients, queue<msg_info> &msg_queue) {
     string buffer, cmd;
     string pongMsg("pong");
+    msg_info msg_pack;
     regex r(RGX_CMD); // RGX_CMD defined in "utils.hpp"
     smatch m;
     bool alive;
@@ -64,9 +57,11 @@ void receive_from_client(Socket *client) {
             }
         } else {
             // The server just got a regular message
-            cout << buffer << endl;
-            alive = send_chunk(buffer, client);
-            // TODO: send broadcast
+            // TODO: Lookup for client nickname and append it to msg_info struct
+            msg_pack.content = buffer;
+            mtx.lock();
+            msg_queue.push(msg_pack);
+            mtx.unlock();
         }
         if (!alive) {
             break;
@@ -74,40 +69,58 @@ void receive_from_client(Socket *client) {
     }
 }
 
-// THREAD QUE ENVIA EM BROADCAST
-void send_message_broadcast() {}
+void broadcast_thread(client_hash &clients, queue<msg_info> &msg_queue) {
+    msg_info next_msg_pack;
 
-int main(int argc, const char **argv) {
-    uint16_t server_port;
-    queue<msg_info> msg_queue; // Queue of messages to send in broadcast
-    // vector<Socket> clients;
+    while (true) {
+        mtx.lock(); // Prevent conflicts
 
-    // Check if args are valid
-    if (argc < 2) {
-        fprintf(stderr, "Not enough arguments.\nUsage format: %s {port}\n", argv[0]);
-        exit(EXIT_FAILURE);
+        next_msg_pack = msg_queue.front();
+        msg_queue.pop();
+
+        for (auto it = clients.begin(); it != clients.end(); it++) {
+            send_chunk(next_msg_pack.content, it->c_socket);
+        }
+
+        mtx.unlock();
     }
-    // Convert the port to an integer
-    server_port = atoi(argv[1]);
+}
+
+void accept_thread(Socket &listener, client_hash &clients, queue<msg_info> &msg_queue) {
+    Socket *client;
+    vector<thread> open_threads;
+
+    while (true) {
+        // Wait until a new connection arrives. Then, create a new Socket for conversating with this client
+        client = listener.accept_connection();
+        // --- Handle nicknames here
+        // Open a thread to handle messages sent by this client
+        thread receive_t(receive_client_thread, client, clients, msg_queue);
+        open_threads.push_back(move(receive_t));
+    }
+
+    for (thread &t : open_threads) {
+        if (t.joinable()) {
+            t.join();
+        }
+    }
+}
+
+int main() {
+    client_hash client_lookup; // Map a client to a nickname
+    queue<msg_info> msg_queue; // Queue of messages to send in broadcast
 
     // Creates a socket that is only going to listen for incoming connection attempts
-    Socket listener("any", server_port);
+    Socket listener("any", SERVER_PORT);
 
     // Open server for, at most, MAX_CONN connections
     listener.listening(MAX_CONN);
 
-    Socket *client;
-    while (true) {
-        // Wait until a new connection arrives. Then, create a new Socket for conversating with this client
-        client = listener.accept_connection();
-        // clients.push_back(*client);
-        // Get all messages sent by the client
-        receive_from_client(client);
-        // thread receive_t(receive_from_client, client);
-        // receive_t.join();
+    thread accept_t(accept_thread, &listener, &client_lookup, &msg_queue);
+    thread broadcast_t(broadcast_thread, &client_lookup, &msg_queue);
 
-        delete client;
-    }
+    accept_t.join();
+    broadcast_t.join();
 
     return 0;
 }

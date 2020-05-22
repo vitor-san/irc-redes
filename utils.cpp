@@ -13,22 +13,22 @@ void check_error(int status, int error_num, const char *msg) {
     }
 }
 
-std::vector<char[MSG_SIZE]> break_msg(std::string msg) {
+std::vector<char[MSG_SIZE + 1]> break_msg(std::string msg) {
     int msg_len = msg.size();
     if (msg[msg_len - 1] == '\0')
         msg_len--;
 
-    int n_chunks = int(ceil((double)msg_len / MSG_SIZE)); // -1 to make '\0' fit in the end
-    std::vector<char[MSG_SIZE]> chunks(n_chunks);
+    int n_chunks = int(ceil((double)msg_len / MSG_SIZE + 1)); // -1 to make '\0' fit in the end
+    std::vector<char[MSG_SIZE + 1]> chunks(n_chunks);
 
     int start, chunk_len;
     for (int i = 0; i < n_chunks; i++) {
-        start = i * MSG_SIZE;
+        start = i * MSG_SIZE + 1;
 
         if (i + 1 == n_chunks) // Last chunck
             chunk_len = msg_len - start;
         else
-            chunk_len = MSG_SIZE;
+            chunk_len = MSG_SIZE + 1;
 
         msg.copy(chunks[i], chunk_len, start);
         chunks[i][chunk_len] = '\0';
