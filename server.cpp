@@ -28,7 +28,7 @@ bool send_chunk(string &chunk, Socket *client) {
     return client->send_message_from(chunk);
 }
 
-void receive_client_thread(Socket *client, client_hash &clients, queue<msg_info> &msg_queue) {
+void receive_client_thread(Socket *client, client_hash *clients, queue<msg_info> *msg_queue) {
     string buffer, cmd;
     string pongMsg("pong");
     msg_info msg_pack;
@@ -60,7 +60,7 @@ void receive_client_thread(Socket *client, client_hash &clients, queue<msg_info>
             // TODO: Lookup for client nickname and append it to msg_info struct
             msg_pack.content = buffer;
             mtx.lock();
-            msg_queue.push(msg_pack);
+            msg_queue->push(msg_pack);
             mtx.unlock();
         }
         if (!alive) {
@@ -69,16 +69,20 @@ void receive_client_thread(Socket *client, client_hash &clients, queue<msg_info>
     }
 }
 
-void broadcast_thread(client_hash &clients, queue<msg_info> &msg_queue) {
+void broadcast_thread(client_hash *clients, queue<msg_info> *msg_queue) {
     msg_info next_msg_pack;
+
+    cout << "Now broadcasting messages...\n";
 
     while (true) {
         mtx.lock(); // Prevent conflicts
 
-        next_msg_pack = msg_queue.front();
-        msg_queue.pop();
+        if (!msg_queue->empty()) {
+            next_msg_pack = msg_queue->front();
+            msg_queue->pop();
+        }
 
-        for (auto it = clients.begin(); it != clients.end(); it++) {
+        for (auto it = clients->begin(); it != clients->end(); it++) {
             send_chunk(next_msg_pack.content, it->c_socket);
         }
 
@@ -86,13 +90,15 @@ void broadcast_thread(client_hash &clients, queue<msg_info> &msg_queue) {
     }
 }
 
-void accept_thread(Socket &listener, client_hash &clients, queue<msg_info> &msg_queue) {
+void accept_thread(Socket *listener, client_hash *clients, queue<msg_info> *msg_queue) {
     Socket *client;
     vector<thread> open_threads;
 
+    cout << "Now accepting new connections...\n";
+
     while (true) {
         // Wait until a new connection arrives. Then, create a new Socket for conversating with this client
-        client = listener.accept_connection();
+        client = listener->accept_connection();
         // --- Handle nicknames here
         // Open a thread to handle messages sent by this client
         thread receive_t(receive_client_thread, client, clients, msg_queue);
