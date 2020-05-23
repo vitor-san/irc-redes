@@ -7,7 +7,7 @@
 #include <unordered_map>
 #include <vector>
 
-#define MAX_CONN 10
+#define MAX_CONN 2
 #define SERVER_PORT 9001
 #define client_hash unordered_map<Socket *, int>
 #define c_socket first
@@ -29,7 +29,7 @@ bool send_chunk(string &chunk, Socket *client) {
     return client->send_message_from(chunk);
 }
 
-void receive_client_thread(Socket *client, client_hash *clients, vector<msg_info> *msg_queue) {
+void receive_client_thread(Socket *client, client_hash *clients, queue<msg_info> *msg_queue) {
     string buffer, cmd;
     string pongMsg("pong");
     msg_info msg_pack;
@@ -63,7 +63,7 @@ void receive_client_thread(Socket *client, client_hash *clients, vector<msg_info
             msg_pack.content = buffer;
 
             mtx.lock();
-            msg_queue->push_back(msg_pack);
+            msg_queue->push(msg_pack);
             mtx.unlock();
 
             buffer.clear();
@@ -77,14 +77,7 @@ void receive_client_thread(Socket *client, client_hash *clients, vector<msg_info
          << "Tchuchucao" << endl;
 }
 
-void print_queue(vector<msg_info> *q) {
-    for (auto it = q->begin(); it != q->end(); it++) {
-        msg_info ac = *it;
-        cout << ac.content << endl;
-    }
-}
-
-void broadcast_thread(client_hash *clients, vector<msg_info> *msg_queue) {
+void broadcast_thread(client_hash *clients, queue<msg_info> *msg_queue) {
     msg_info next_msg_pack;
 
     cout << "Now broadcasting messages...\n";
@@ -93,15 +86,15 @@ void broadcast_thread(client_hash *clients, vector<msg_info> *msg_queue) {
         mtx.lock(); // Prevent conflicts
 
         if (!msg_queue->empty()) {
-            print_queue(msg_queue);
             next_msg_pack = msg_queue->front();
-            // msg_queue->pop();
-            msg_queue->erase(msg_queue->begin());
-        }
+            msg_queue->pop();
+            cout << "Queue size is " << msg_queue->size() << endl;
 
-        for (auto it = clients->begin(); it != clients->end(); it++) {
-            if ((int)next_msg_pack.content.size() > 0) {
-                send_chunk(next_msg_pack.content, it->c_socket);
+            for (auto it = clients->begin(); it != clients->end(); it++) {
+                if ((int)next_msg_pack.content.size() > 0) {
+                    cout << "Mandei uma vez\n";
+                    send_chunk(next_msg_pack.content, it->c_socket);
+                }
             }
         }
 
@@ -109,7 +102,7 @@ void broadcast_thread(client_hash *clients, vector<msg_info> *msg_queue) {
     }
 }
 
-void accept_thread(Socket *listener, client_hash *clients, vector<msg_info> *msg_queue) {
+void accept_thread(Socket *listener, client_hash *clients, queue<msg_info> *msg_queue) {
     Socket *client;
     vector<thread> open_threads;
     int id = 1;
@@ -120,8 +113,8 @@ void accept_thread(Socket *listener, client_hash *clients, vector<msg_info> *msg
         // Wait until a new connection arrives. Then, create a new Socket for conversating with this client
         client = listener->accept_connection();
         // Handle nicknames here
-        clients->insert(pair<Socket *, int>(client, id));
-        id++;
+        clients->insert(pair<Socket *, int>(client, id++));
+        cout << "Inserted client " << id - 1 << "\n";
         // Open a thread to handle messages sent by this client
         thread receive_t(receive_client_thread, client, clients, msg_queue);
         open_threads.push_back(move(receive_t));
@@ -135,8 +128,8 @@ void accept_thread(Socket *listener, client_hash *clients, vector<msg_info> *msg
 }
 
 int main() {
-    client_hash client_lookup;  // Map a client to a nickname
-    vector<msg_info> msg_queue; // Queue of messages to send in broadcast
+    client_hash client_lookup; // Map a client to a nickname
+    queue<msg_info> msg_queue; // Queue of messages to send in broadcast
 
     // Creates a socket that is only going to listen for incoming connection attempts
     Socket listener("any", SERVER_PORT);

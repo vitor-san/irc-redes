@@ -35,7 +35,6 @@ void send_message(Socket *s) {
             chunks = break_msg(buffer);
             for (int i = 0; i < (int)chunks.size(); i++) {
                 // Send the message to the server
-                cout << chunks[i] << "\n";
                 s->send_message_from(chunks[i]);
             }
         }
@@ -46,7 +45,7 @@ void receive_message(Socket *s) {
     string buffer;
     // while an error or quit doesn't occur
     while (running && (s->receive_message_on(buffer) != -1)) {
-        cout << "Server:" << buffer << endl;
+        cout << buffer << endl;
     }
 }
 
