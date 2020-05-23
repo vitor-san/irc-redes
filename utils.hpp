@@ -7,7 +7,7 @@
 #include <string>
 #include <vector>
 
-#define MSG_SIZE 4             // Limit of characters for a single message
+#define MSG_SIZE 5             // Limit of characters for a single message
 #define MAX_RET 5              // Maximum number of retransmissions per client
 #define RGX_CMD "^\\s*/(\\w+)" // Regex to find command given by user in a message
 
@@ -27,6 +27,7 @@ void check_error(int status, int error_num, const char *msg);
  *       vector<char[MSG_SIZE+1]>: vector containing all chunks of the
  *   partitionated message.
  */
-std::vector<char[MSG_SIZE + 1]> break_msg(std::string msg);
+// std::vector<char[MSG_SIZE + 1]> break_msg(std::string msg);
+std::vector<std::string> break_msg(std::string msg);
 
 #endif

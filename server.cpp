@@ -5,10 +5,11 @@
 #include <queue>
 #include <thread>
 #include <unordered_map>
+#include <vector>
 
 #define MAX_CONN 10
 #define SERVER_PORT 9001
-#define client_hash unordered_map<Socket *, string>
+#define client_hash unordered_map<Socket *, int>
 #define c_socket first
 #define c_nick second
 
@@ -28,16 +29,16 @@ bool send_chunk(string &chunk, Socket *client) {
     return client->send_message_from(chunk);
 }
 
-void receive_client_thread(Socket *client, client_hash *clients, queue<msg_info> *msg_queue) {
+void receive_client_thread(Socket *client, client_hash *clients, vector<msg_info> *msg_queue) {
     string buffer, cmd;
     string pongMsg("pong");
     msg_info msg_pack;
     regex r(RGX_CMD); // RGX_CMD defined in "utils.hpp"
     smatch m;
-    bool alive;
+    bool alive = true;
 
     // While an error doesn't occur
-    while (client->receive_message_on(buffer) != -1) {
+    while (client->receive_message_on(buffer) > 0) {
         // Buffer contains a message of, at max, MSG_SIZE chars
         // Parses the message, searching for commands
         regex_search(buffer, m, r);
@@ -58,18 +59,32 @@ void receive_client_thread(Socket *client, client_hash *clients, queue<msg_info>
         } else {
             // The server just got a regular message
             // TODO: Lookup for client nickname and append it to msg_info struct
+            cout << buffer << endl;
             msg_pack.content = buffer;
+
             mtx.lock();
-            msg_queue->push(msg_pack);
+            msg_queue->push_back(msg_pack);
             mtx.unlock();
+
+            buffer.clear();
         }
         if (!alive) {
             break;
         }
     }
+
+    cout << "Connection closed with client "
+         << "Tchuchucao" << endl;
 }
 
-void broadcast_thread(client_hash *clients, queue<msg_info> *msg_queue) {
+void print_queue(vector<msg_info> *q) {
+    for (auto it = q->begin(); it != q->end(); it++) {
+        msg_info ac = *it;
+        cout << ac.content << endl;
+    }
+}
+
+void broadcast_thread(client_hash *clients, vector<msg_info> *msg_queue) {
     msg_info next_msg_pack;
 
     cout << "Now broadcasting messages...\n";
@@ -78,28 +93,35 @@ void broadcast_thread(client_hash *clients, queue<msg_info> *msg_queue) {
         mtx.lock(); // Prevent conflicts
 
         if (!msg_queue->empty()) {
+            print_queue(msg_queue);
             next_msg_pack = msg_queue->front();
-            msg_queue->pop();
+            // msg_queue->pop();
+            msg_queue->erase(msg_queue->begin());
         }
 
         for (auto it = clients->begin(); it != clients->end(); it++) {
-            send_chunk(next_msg_pack.content, it->c_socket);
+            if ((int)next_msg_pack.content.size() > 0) {
+                send_chunk(next_msg_pack.content, it->c_socket);
+            }
         }
 
         mtx.unlock();
     }
 }
 
-void accept_thread(Socket *listener, client_hash *clients, queue<msg_info> *msg_queue) {
+void accept_thread(Socket *listener, client_hash *clients, vector<msg_info> *msg_queue) {
     Socket *client;
     vector<thread> open_threads;
+    int id = 1;
 
     cout << "Now accepting new connections...\n";
 
     while (true) {
         // Wait until a new connection arrives. Then, create a new Socket for conversating with this client
         client = listener->accept_connection();
-        // --- Handle nicknames here
+        // Handle nicknames here
+        clients->insert(pair<Socket *, int>(client, id));
+        id++;
         // Open a thread to handle messages sent by this client
         thread receive_t(receive_client_thread, client, clients, msg_queue);
         open_threads.push_back(move(receive_t));
@@ -113,8 +135,8 @@ void accept_thread(Socket *listener, client_hash *clients, queue<msg_info> *msg_
 }
 
 int main() {
-    client_hash client_lookup; // Map a client to a nickname
-    queue<msg_info> msg_queue; // Queue of messages to send in broadcast
+    client_hash client_lookup;  // Map a client to a nickname
+    vector<msg_info> msg_queue; // Queue of messages to send in broadcast
 
     // Creates a socket that is only going to listen for incoming connection attempts
     Socket listener("any", SERVER_PORT);

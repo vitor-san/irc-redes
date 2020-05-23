@@ -1,4 +1,5 @@
 #include "socket.hpp"
+#include <iostream>
 
 // Default constructor. Not used here.
 Socket::Socket() {}
@@ -122,7 +123,7 @@ bool Socket::send_message_from(std::string buffer) {
  *      int: the number of bytes read. Returns -1 in case of an error.
  */
 int Socket::receive_message_on(std::string &buffer) {
-    const char *c_msg = new char[MSG_SIZE + 1];
+    const char *c_msg = new char[MSG_SIZE + 1]; // +1 because of \0
 
     int status = recv(this->target_socket_fd, (void *)c_msg, (MSG_SIZE + 1) * sizeof(char), 0);
     check_error(status, -1, "Failed to receive message");

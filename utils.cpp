@@ -13,25 +13,26 @@ void check_error(int status, int error_num, const char *msg) {
     }
 }
 
-std::vector<char[MSG_SIZE + 1]> break_msg(std::string msg) {
-    int msg_len = msg.size();
-    if (msg[msg_len - 1] == '\0')
-        msg_len--;
+/*
+ *   Breaks the message into chunks of, at max, MSG_SIZE+1 chars (including '\0').
+ *   Parameters:
+ *       msg (string): message to be broken in smaller parts (if possible).
+ *   Returns:
+ *       vector<char[MSG_SIZE+1]>: vector containing all chunks of the
+ *   partitionated message.
+ */
+std::vector<std::string> break_msg(std::string msg) {
 
-    int n_chunks = int(ceil((double)msg_len / MSG_SIZE + 1)); // -1 to make '\0' fit in the end
-    std::vector<char[MSG_SIZE + 1]> chunks(n_chunks);
+    int n_chunks = int(ceil((double)msg.size() / MSG_SIZE));
+    std::vector<std::string> chunks(n_chunks);
 
-    int start, chunk_len;
+    int j, start_submsg = 0;
     for (int i = 0; i < n_chunks; i++) {
-        start = i * MSG_SIZE + 1;
-
-        if (i + 1 == n_chunks) // Last chunck
-            chunk_len = msg_len - start;
-        else
-            chunk_len = MSG_SIZE + 1;
-
-        msg.copy(chunks[i], chunk_len, start);
-        chunks[i][chunk_len] = '\0';
+        for (j = start_submsg; j < (start_submsg + MSG_SIZE); j++) {
+            chunks[i] += msg[j];
+        }
+        chunks[i] += '\0';
+        start_submsg = j;
     }
 
     return chunks;

@@ -16,7 +16,7 @@ void send_message(Socket *s) {
     string buffer, cmd;
     regex r(RGX_CMD); // RGX_CMD defined in "utils.hpp"
     smatch m;
-    vector<char[MSG_SIZE + 1]> chunks;
+    vector<string> chunks;
 
     while (running) {
         // Get the message from the client and store it in the buffer
@@ -35,9 +35,8 @@ void send_message(Socket *s) {
             chunks = break_msg(buffer);
             for (int i = 0; i < (int)chunks.size(); i++) {
                 // Send the message to the server
-                string chunk = chunks[i];
-                s->send_message_from(chunk);
-                cout << "MANDEI MSG PRO SERVER HAHA" << endl;
+                cout << chunks[i] << "\n";
+                s->send_message_from(chunks[i]);
             }
         }
     }
@@ -46,8 +45,8 @@ void send_message(Socket *s) {
 void receive_message(Socket *s) {
     string buffer;
     // while an error or quit doesn't occur
-    while (running && s->receive_message_on(buffer) != -1) {
-        cout << buffer << endl;
+    while (running && (s->receive_message_on(buffer) != -1)) {
+        cout << "Server:" << buffer << endl;
     }
 }
 
