@@ -27,7 +27,6 @@ void check_error(int status, int error_num, const char *msg);
  *       vector<char[MSG_SIZE+1]>: vector containing all chunks of the
  *   partitionated message.
  */
-// std::vector<char[MSG_SIZE + 1]> break_msg(std::string msg);
 std::vector<std::string> break_msg(std::string msg);
 
 #endif

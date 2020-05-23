@@ -7,7 +7,7 @@
 #include <unordered_map>
 #include <vector>
 
-#define MAX_CONN 2
+#define MAX_CONN 10
 #define SERVER_PORT 9001
 #define client_hash unordered_map<Socket *, int>
 #define c_socket first
@@ -51,6 +51,7 @@ void receive_client_thread(Socket *client, client_hash *clients, queue<msg_info>
             } else if (cmd == "ping") {
                 // Send "pong" to the client
                 // FALTA ENVIAR AS 5 VEZES
+                cout << "PORRA" << endl;
                 alive = send_chunk(pongMsg, client);
                 // If there was any error in the message sending, break this connection
             } else if (cmd == "connect") {
@@ -73,8 +74,7 @@ void receive_client_thread(Socket *client, client_hash *clients, queue<msg_info>
         }
     }
 
-    cout << "Connection closed with client "
-         << "Tchuchucao" << endl;
+    cout << "Connection closed with client " << (*clients)[client] << endl;
 }
 
 void broadcast_thread(client_hash *clients, queue<msg_info> *msg_queue) {
@@ -88,11 +88,9 @@ void broadcast_thread(client_hash *clients, queue<msg_info> *msg_queue) {
         if (!msg_queue->empty()) {
             next_msg_pack = msg_queue->front();
             msg_queue->pop();
-            cout << "Queue size is " << msg_queue->size() << endl;
 
             for (auto it = clients->begin(); it != clients->end(); it++) {
                 if ((int)next_msg_pack.content.size() > 0) {
-                    cout << "Mandei uma vez\n";
                     send_chunk(next_msg_pack.content, it->c_socket);
                 }
             }
