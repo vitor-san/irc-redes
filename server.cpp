@@ -49,7 +49,6 @@ string prepare_msg(string &chunk, client_hash *clients, Socket *client) {
 bool send_chunk(string &chunk, Socket *client) {
     bool success = false;
     for (int t = 0; t < MAX_RET; t++) {
-        cout << "Try " << t + 1 << endl;
         success = client->send_message_from(chunk);
         if (success)
             return true;
@@ -64,6 +63,7 @@ void receive_client_thread(Socket *client, client_hash *clients, queue<msg_info>
     regex r(RGX_CMD); // RGX_CMD defined in "utils.hpp"
     smatch m;
     hash_value &myself = (*clients)[client];
+    string new_nick;
 
     // Check if client knows the password
     bool aceptPassword = false;
@@ -95,8 +95,13 @@ void receive_client_thread(Socket *client, client_hash *clients, queue<msg_info>
                 mtx.unlock();
                 cout << "Pong sent to client " << nick(myself) << endl;
             } else if (cmd == "nickname") {
+                new_nick = m[2].str();
+                // Notice the change
+                msg_pack.content = "User " + nick(myself) + " changed his nickname to " + new_nick + ".";
+                // Prevent conflicts
                 mtx.lock();
-                nick(myself) = m[2].str();
+                msg_queue->push(msg_pack);
+                nick(myself) = new_nick;
                 mtx.unlock();
             }
         } else {
@@ -113,6 +118,11 @@ void receive_client_thread(Socket *client, client_hash *clients, queue<msg_info>
     }
 
     cout << "Connection closed with client " << nick(myself) << endl;
+    msg_pack.content = "User " + nick(myself) + " has disconnected from the server...";
+    // Prevent conflicts
+    mtx.lock();
+    msg_queue->push(msg_pack);
+    mtx.unlock();
 }
 
 void broadcast_thread(client_hash *clients, queue<msg_info> *msg_queue) {
@@ -149,6 +159,7 @@ void broadcast_thread(client_hash *clients, queue<msg_info> *msg_queue) {
 void accept_thread(Socket *listener, client_hash *clients, queue<msg_info> *msg_queue) {
     Socket *client;
     string nickname = "unknown";
+    msg_info new_pack;
 
     cout << "Now accepting new connections...\n";
 
@@ -160,6 +171,11 @@ void accept_thread(Socket *listener, client_hash *clients, queue<msg_info> *msg_
         // Register client, his thread and a control boolean in the hash
         clients->insert(make_pair(client, make_tuple(nickname, move(receive_t), true)));
         cout << "Inserted client " << nickname << "\n";
+        new_pack.content = "A new user has entered the chat!";
+        // Prevent conflicts
+        mtx.lock();
+        msg_queue->push(new_pack);
+        mtx.unlock();
     }
 
     for (auto it = clients->begin(); it != clients->end(); it++) {
