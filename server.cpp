@@ -1,5 +1,6 @@
 #include "socket.hpp"
 #include "utils.hpp"
+#include <chrono>
 #include <iostream>
 #include <mutex>
 #include <queue>
@@ -11,6 +12,7 @@ using namespace std;
 
 #define MAX_CONN 10
 #define SERVER_PORT 9001
+#define PASSWORD "321guigay\0"
 
 #define hash_value tuple<string, thread, bool> // nickname, thread and is_alive
 #define nick(tup) get<0>(tup)
@@ -62,7 +64,18 @@ void receive_client_thread(Socket *client, client_hash *clients, queue<msg_info>
     regex r(RGX_CMD); // RGX_CMD defined in "utils.hpp"
     smatch m;
     hash_value &myself = (*clients)[client];
-    string client_nick = nick(myself); // Gets client nickname
+
+    // Check if client knows the password
+    bool aceptPassword = false;
+    while (!aceptPassword) {
+        client->send_message_from(string("Type password above"));
+        client->receive_message_on(buffer);
+        if (!strcmp(buffer.c_str(), PASSWORD)) {
+            aceptPassword = true;
+        }
+    }
+
+    client->send_message_from(string("\n\nWelcome to our server!\n\n"));
 
     while (alive(myself) && client->receive_message_on(buffer) > 0) {
         // Parses the message, searching for commands
@@ -74,13 +87,17 @@ void receive_client_thread(Socket *client, client_hash *clients, queue<msg_info>
                 mtx.lock();
                 alive(myself) = false;
                 mtx.unlock();
-                cout << "Client" << client_nick << "quited" << endl;
+                cout << "Client" << nick(myself) << "quited" << endl;
             } else if (cmd == "ping") {
                 // Send "pong" to the client
                 mtx.lock();
                 alive(myself) = send_chunk(pongMsg, client);
                 mtx.unlock();
-                cout << "Pong sent to client" << client_nick << endl;
+                cout << "Pong sent to client " << nick(myself) << endl;
+            } else if (cmd == "nickname") {
+                mtx.lock();
+                nick(myself) = m[2].str();
+                mtx.unlock();
             }
         } else {
             // The server just got a regular message
@@ -95,7 +112,7 @@ void receive_client_thread(Socket *client, client_hash *clients, queue<msg_info>
         }
     }
 
-    cout << "Connection closed with client " << client_nick << endl;
+    cout << "Connection closed with client " << nick(myself) << endl;
 }
 
 void broadcast_thread(client_hash *clients, queue<msg_info> *msg_queue) {
@@ -131,7 +148,7 @@ void broadcast_thread(client_hash *clients, queue<msg_info> *msg_queue) {
 
 void accept_thread(Socket *listener, client_hash *clients, queue<msg_info> *msg_queue) {
     Socket *client;
-    string nickname = "nickname";
+    string nickname = "unknown";
 
     cout << "Now accepting new connections...\n";
 
