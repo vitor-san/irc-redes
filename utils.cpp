@@ -1,5 +1,6 @@
 #include "utils.hpp"
 #include <iostream>
+
 /*
  *   Check for errors. If any, print them to stderr and exit the program.
  *   Parameters:
@@ -9,7 +10,6 @@
 void check_error(int status, int error_num, const char *msg) {
     if (status == error_num) {
         perror(msg);
-        exit(EXIT_FAILURE);
     }
 }
 
