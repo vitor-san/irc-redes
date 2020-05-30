@@ -64,7 +64,8 @@ void list_servers(server_dns &DNS) {
  * Returns whether the connection was successful.
  */
 bool connect_to(server_dns &DNS, string &server_name, string &ip, uint16_t &port) {
-    if ((int)server_name.size() < 5 || (int)server_name.size() > 50) return false;
+    if ((int)server_name.size() < 5 || (int)server_name.size() > 50)
+        return false;
     // Check if the server is registered in our DNS
     if (DNS.count(server_name)) {
         server_data value = DNS[server_name];
@@ -90,7 +91,7 @@ int main(int argc, const char **argv) {
 
     while (running) {
         cout << "Please, connect to one of our servers using the /connect command.\n"
-             << "You can run the command /list for a list of available servers.\n\n";
+             << "You can run /list for a list of available servers.\n\n";
         getline(cin, cmd);
         // Parses the input, searching for commands
         regex_search(cmd, m, r);
@@ -99,7 +100,7 @@ int main(int argc, const char **argv) {
             server_name = m[2].str();
             // Get the IP and the port from the DNS table
             is_in_table = connect_to(DNS, server_name, server_ip, server_port);
-            if (!is_in_table){
+            if (!is_in_table) {
                 cout << "\nCould not find the specified server in our DNS table.\n\n";
                 continue;
             }
