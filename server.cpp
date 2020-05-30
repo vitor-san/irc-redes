@@ -11,7 +11,7 @@
 using namespace std;
 
 #define MAX_CONN 10
-#define SERVER_PORT 9001
+#define PORT 9001
 #define PASSWORD "kalinka@SSC0142"
 
 #define nick(tup) get<0>(tup)
@@ -88,7 +88,6 @@ void Server::send_to_queue(msg_info &pack) {
 /*
     Tries to send the message chunk to the client.
     Returns false in case of error
-    WARNING: Only send chunks of, at maximum, MSG_SIZE-1 chars.
 */
 bool Server::send_chunk(string &chunk, Socket *client) {
     bool success = false;
@@ -260,7 +259,7 @@ void Server::broadcast() {
 }
 
 int main() {
-    Server IRC(SERVER_PORT);
+    Server IRC(PORT);
 
     thread accept_t = IRC.accept_thread();
     thread broadcast_t = IRC.broadcast_thread();
