@@ -13,6 +13,7 @@ bool running = true;
 
 void handleCtrlC(int signum) { cout << "\nPlease, use the /quit command.\n"; }
 
+// Thread to send messages to the server
 void send_message(Socket *s) {
     string buffer, cmd;
     regex r(RGX_CMD); // RGX_CMD defined in "utils.hpp"
@@ -41,6 +42,7 @@ void send_message(Socket *s) {
     }
 }
 
+// Thread for receiving messages from the server
 void receive_message(Socket *s) {
     string buffer;
     // while an error or quit doesn't occur
@@ -49,32 +51,61 @@ void receive_message(Socket *s) {
     }
 }
 
+void list_servers(server_dns &DNS) {
+    cout << endl;
+    for (auto it = DNS.begin(); it != DNS.end(); it++) {
+        cout << it->first << endl;
+    }
+    cout << endl;
+}
+
+/*
+ * Function used to populate the server's IP and port.
+ * Returns whether the connection was successful.
+ */
+bool connect_to(server_dns &DNS, string &server_name, string &ip, uint16_t &port) {
+    if ((int)server_name.size() < 5 || (int)server_name.size() > 50) return false;
+    // Check if the server is registered in our DNS
+    if (DNS.count(server_name)) {
+        server_data value = DNS[server_name];
+        ip = value.first;
+        port = value.second;
+        return true;
+    }
+    return false;
+}
+
 int main(int argc, const char **argv) {
+    string server_name, server_ip, cmd;
     uint16_t server_port;
-    string server_ip, cmd;
-    char quit = ' ';
     regex r(RGX_CMD); // RGX_CMD defined in "utils.hpp"
     smatch m;
-    bool connected = false;
+    char quit = ' ';
+    bool is_in_table, connected = false;
+    server_dns DNS = get_dns();
     Socket *my_socket;
 
     system("clear");
-    cout << "Welcome to IRC Club.\n\n";
+    cout << "Welcome to GG Club.\n\n";
 
     while (running) {
         cout << "Please, connect to one of our servers using the /connect command.\n"
              << "You can run the command /list for a list of available servers.\n\n";
-        cin >> cmd;
+        getline(cin, cmd);
         // Parses the input, searching for commands
         regex_search(cmd, m, r);
         cmd = m[1].str(); // Gets command found, if any
         if (cmd == "connect") {
-            cout << "\nEnter the IP of the server (with dots):\n";
-            cin >> server_ip;
-            cout << "Enter the Port of the server:\n";
-            cin >> server_port;
+            server_name = m[2].str();
+            // Get the IP and the port from the DNS table
+            is_in_table = connect_to(DNS, server_name, server_ip, server_port);
+            if (!is_in_table){
+                cout << "\nCould not find the specified server in our DNS table.\n\n";
+                continue;
+            }
+            cmd.clear();
         } else if (cmd == "list") {
-            cout << "TROLLADO! Esse comando não foi implementado ainda.\n\n";
+            list_servers(DNS);
             continue;
         } else {
             cout << "Please, provide a valid command for starting.\n\n";

@@ -1,13 +1,12 @@
 #include "utils.hpp"
-#include <iostream>
 
 /*
- *   Check for errors. If any, print them to stderr and exit the program.
- *   Parameters:
- *       status (int): status to be checked (only -1 represents an error).
- *       msg (const char array): message to be printed to stderr if an error is encountered.
- */
-void check_error(int status, int error_num, const char *msg) {
+     *   Check for errors. If any, print them to stderr and exit the program.
+     *   Parameters:
+     *       status (int): status to be checked (only -1 represents an error).
+     *       msg (const char array): message to be printed to stderr if an error is encountered.
+     */
+    void check_error(int status, int error_num, const char *msg) {
     if (status == error_num) {
         perror(msg);
     }
@@ -36,4 +35,24 @@ std::vector<std::string> break_msg(std::string msg) {
     }
 
     return chunks;
+}
+
+server_dns get_dns() {
+    std::ifstream reader("dns.txt", std::ifstream::in);
+    std::string name;
+    std::string ip;
+    uint16_t port;
+
+    server_dns DNS;
+
+    while(reader.good()){
+        reader >> name;
+        reader >> ip;
+        reader >> port;
+
+        DNS.insert(make_pair(name, make_pair(ip,port)));
+    }
+
+    reader.close();
+    return DNS;
 }

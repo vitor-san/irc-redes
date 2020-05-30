@@ -1,9 +1,13 @@
 #ifndef UTILS_HPP
 #define UTILS_HPP
 
+#include <iostream>
+#include <fstream>
 #include <math.h>
 #include <regex>
 #include <string.h>
+#include <map>
+#include <utility>
 #include <string>
 #include <vector>
 
@@ -11,6 +15,9 @@
 #define NICK_SIZE 50                   // Limit of characters for a nickname
 #define MAX_RET 5                      // Maximum number of retransmissions per client
 #define RGX_CMD "^\\s*/(\\w+) ?(\\w*)" // Regex to find command given by user in a message
+
+using server_data = std::pair<std::string, uint16_t>; // IP and a port
+using server_dns = std::map<std::string, server_data>; // Maps a name to a server
 
 /*
  *   Check for errors. If any, print them to stderr and exit the program.
@@ -25,9 +32,11 @@ void check_error(int status, int error_num, const char *msg);
  *   Parameters:
  *       msg (string): message to be broken in smaller parts (if possible).
  *   Returns:
- *       vector<char[MSG_SIZE+1]>: vector containing all chunks of the
+ *       vector of strings: vector containing all chunks of the
  *   partitionated message.
  */
 std::vector<std::string> break_msg(std::string msg);
+
+server_dns get_dns();
 
 #endif

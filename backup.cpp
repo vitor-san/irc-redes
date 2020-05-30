@@ -15,10 +15,9 @@ using namespace std;
 #define PASSWORD "kalinka@SSC0142"
 
 #define nick(tup) get<0>(tup)
-#define thre(tup) get<1>(tup)
-#define alive(tup) get<2>(tup)
+#define alive(tup) get<1>(tup)
 
-using hash_value = tuple<string, thread, bool>; // nickname, thread and is_alive
+using hash_value = tuple<string, bool>; // nickname, thread and is_alive
 using client_hash = unordered_map<Socket *, hash_value>;
 
 struct msg_info {
@@ -31,30 +30,31 @@ struct msg_info {
 // };
 
 class Server {
-    private:
-        Socket listener;
-        client_hash client_lookup; // Map a client to a nickname and a thread
-        queue<msg_info> msg_queue; // Queue of messages to send in broadcast
-        mutex mtx; // Control of critical regions. Resembles a semaphore.
-        void check_password(Socket *client);
-        void change_nickname(string &new_nick, Socket *client);
-        string prepare_msg(string &chunk, Socket *client);
-        bool send_chunk(string &chunk, Socket *client);
-        void send_to_queue(msg_info &pack);
-    public:
-        Server(int port);
-        void broadcast();
-        void accept();
-        void receive(Socket *client);
-        thread broadcast_thread() {
-            return thread([=] { broadcast(); });
-        }
-        thread accept_thread() {
-            return thread([=] { accept(); });
-        }
-        thread receive_thread(Socket *client) {
-            return thread([=] { receive(client); });
-        }
+  private:
+    Socket listener;
+    client_hash client_lookup; // Map a client to a nickname and a thread
+    queue<msg_info> msg_queue; // Queue of messages to send in broadcast
+    mutex mtx;                 // Control of critical regions. Resembles a semaphore.
+    void check_password(Socket *client);
+    void change_nickname(string &new_nick, Socket *client);
+    string prepare_msg(string &chunk, Socket *client);
+    bool send_chunk(string &chunk, Socket *client);
+    void send_to_queue(msg_info &pack);
+
+  public:
+    Server(int port);
+    void broadcast();
+    void accept();
+    void receive(Socket *client);
+    thread broadcast_thread() {
+        return thread([=] { broadcast(); });
+    }
+    thread accept_thread() {
+        return thread([=] { accept(); });
+    }
+    thread receive_thread(Socket *client) {
+        return thread([=] { receive(client); });
+    }
 };
 
 // Creates a socket that is only going to listen for incoming connection attempts
@@ -145,7 +145,7 @@ void Server::change_nickname(string &new_nick, Socket *client) {
 }
 
 // Method to handle messages received from a specific client (socket)
-void Server::receive(Socket* client) {
+void Server::receive(Socket *client) {
     string buffer, cmd, new_nick;
     string pongMsg("pong");
     msg_info msg_pack;
@@ -156,10 +156,15 @@ void Server::receive(Socket* client) {
     // Check if client knows the password
     this->check_password(client);
 
+    // Gives to the client a generic nickname
+    nick(myself) = "unknown";
+    // Register client, his thread and a control boolean in the hash
+    this->client_lookup.insert(make_pair(client, make_tuple(nick(myself), true)));
+    cout << "Inserted client " << nick(myself) << "\n";
+
     client->send_message_from(string("\n\nWelcome to our server!\n\n"));
 
     msg_pack.content = "A new user has entered the chat!";
-
 
     while (alive(myself) && client->receive_message_on(buffer) > 0) {
         // Parses the message, searching for commands
@@ -199,6 +204,29 @@ void Server::receive(Socket* client) {
     this->send_to_queue(msg_pack);
 }
 
+// Method for accepting new clients (socket connections)
+void Server::accept() {
+    Socket *client;
+    vector<thread> open_threads;
+
+    cout << "Now accepting new connections...\n";
+
+    while (true) {
+        // Wait until a new connection arrives. Then, create a new Socket for conversating with this client
+        client = this->listener.accept_connection();
+        // Open a thread to handle messages sent by this client
+        thread receive_t = this->receive_thread(client);
+        open_threads.push_back(move(receive_t));
+    }
+
+    for (auto it = open_threads.begin(); it != open_threads.end(); it++) {
+        thread &t = *it;
+        if (t.joinable()) {
+            t.join();
+        }
+    }
+}
+
 // Method for broadcasting messages from the queue
 void Server::broadcast() {
     msg_info next_msg_pack;
@@ -229,32 +257,6 @@ void Server::broadcast() {
             }
         }
         this->mtx.unlock();
-    }
-}
-
-// Method for accepting new clients (socket connections)
-void Server::accept() {
-    Socket *client;
-    string nickname = "unknown";
-
-    cout << "Now accepting new connections...\n";
-
-    while (true) {
-        // Wait until a new connection arrives. Then, create a new Socket for conversating with this client
-        client = this->listener.accept_connection();
-        // Open a thread to handle messages sent by this client
-        thread receive_t = this->receive_thread(client);
-        // Register client, his thread and a control boolean in the hash
-        this->client_lookup.insert(make_pair(client, make_tuple(nickname, move(receive_t), true)));
-        cout << "Inserted client " << nickname << "\n";
-    }
-
-    for (auto it = this->client_lookup.begin(); it != this->client_lookup.end(); it++) {
-        // Get tuple from hash table
-        hash_value &tup = it->second;
-        if (thre(tup).joinable()) {
-            thre(tup).join();
-        }
     }
 }
 
