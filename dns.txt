@@ -1,1 +1,2 @@
-gg_main localhost 9001
+main.ggc 127.0.0.1 9001
+test.ggc localhost 9001

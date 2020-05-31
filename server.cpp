@@ -34,7 +34,7 @@ struct msg_info {
 class Server {
   private:
     Socket listener;
-    client_hash client_lookup; // Map a client to a nickname and a thread
+    client_hash client_lookup; // Map a client to their information
     queue<msg_info> msg_queue; // Queue of messages to send in broadcast
     mutex mtx;                 // Control of critical regions. Resembles a semaphore.
     void check_password(Socket *client);
@@ -61,8 +61,12 @@ class Server {
 
 // Creates a socket that is only going to listen for incoming connection attempts
 Server::Server(int port) : listener("any", port) {
+    bool success = false;
     // Open server for, at most, MAX_CONN connections
-    this->listener.listening(MAX_CONN);
+    success = this->listener.listening(MAX_CONN);
+    if (!success) {
+        throw("Port already in use.");
+    }
 }
 
 /*
@@ -137,11 +141,8 @@ void Server::change_nickname(string &new_nick, Socket *client) {
     } else {
         // Notice to everyone the change
         msg_pack.content = "User " + nick(myself) + " changed his nickname to " + new_nick + ".";
-        // Prevent conflicts
-        this->mtx.lock();
-        this->msg_queue.push(msg_pack);
+        this->send_to_queue(msg_pack);
         nick(myself) = new_nick;
-        this->mtx.unlock();
     }
 }
 
@@ -149,20 +150,27 @@ void Server::change_nickname(string &new_nick, Socket *client) {
 void Server::receive(Socket *client) {
     string buffer, cmd, new_nick;
     string pongMsg("pong");
-    msg_info msg_pack;
     regex r(RGX_CMD); // RGX_CMD defined in "utils.hpp"
     smatch m;
+    int status;
     hash_value &myself = this->client_lookup[client];
+    msg_info msg_pack;
 
-    // Check if client knows the password
-    this->check_password(client);
+    // Check if this client knows the password
+    // this->check_password(client);
     allowed(myself) = true;
 
-    client->send_message_from(string("\n\nWelcome to our server!\n\n"));
+    client->send_message_from(string("\nWelcome to our server!\n\n"));
     msg_pack.content = "A new user has entered the chat!";
     this->send_to_queue(msg_pack);
 
-    while (alive(myself) && client->receive_message_on(buffer) > 0) {
+    while (alive(myself)) {
+        // Receive next message
+        status = client->receive_message_on(buffer);
+        if (status <= 0) {
+            // An error ocurred
+            break;
+        }
         // Parses the message, searching for commands
         regex_search(buffer, m, r);
         cmd = m[1].str(); // Gets first command found, if any
@@ -178,7 +186,10 @@ void Server::receive(Socket *client) {
                 this->mtx.lock();
                 alive(myself) = this->send_chunk(pongMsg, client);
                 this->mtx.unlock();
-                cout << "Pong sent to client " << nick(myself) << endl;
+                // Log
+                if (alive(myself)) {
+                    cout << "Pong sent to client " << nick(myself) << endl;
+                }
             } else if (cmd == "nickname") {
                 // Get the nickname from the message
                 new_nick = m[2].str();
@@ -188,7 +199,6 @@ void Server::receive(Socket *client) {
             // The server just got a regular message
             cout << buffer << endl;
             msg_pack.content = this->prepare_msg(buffer, client);
-            // Prevent conflicts
             this->send_to_queue(msg_pack);
             // Erase buffer to avoid headaches
             buffer.clear();
@@ -198,6 +208,7 @@ void Server::receive(Socket *client) {
     cout << "Connection closed with client " << nick(myself) << endl;
     msg_pack.content = "User " + nick(myself) + " has disconnected from the server...";
     this->send_to_queue(msg_pack);
+    // this->client_lookup.erase(client);
 }
 
 // Method for accepting new clients (socket connections)
@@ -212,18 +223,18 @@ void Server::accept() {
         client = this->listener.accept_connection();
         // Open a thread to handle messages sent by this client
         thread receive_t = this->receive_thread(client);
-        // Register client, his thread and a control boolean in the hash
+        // Register they, they thread and two control booleans in the hash table
         this->client_lookup.insert(make_pair(client, make_tuple(nickname, move(receive_t), true, false)));
         cout << "Inserted client " << nickname << "\n";
     }
 
-    for (auto it = this->client_lookup.begin(); it != this->client_lookup.end(); it++) {
-        // Get tuple from hash table
-        hash_value &tup = it->second;
-        if (thre(tup).joinable()) {
-            thre(tup).join();
-        }
-    }
+    // for (auto it = this->client_lookup.begin(); it != this->client_lookup.end(); it++) {
+    //     // Get tuple from hash table
+    //     hash_value &tup = it->second;
+    //     if (thre(tup).joinable()) {
+    //         thre(tup).join();
+    //     }
+    // }
 }
 
 // Method for broadcasting messages from the queue
@@ -238,18 +249,21 @@ void Server::broadcast() {
         this->mtx.lock();
         // Only run when queue has something on it
         if (!this->msg_queue.empty()) {
+            // Get next message
             next_msg_pack = this->msg_queue.front();
             this->msg_queue.pop();
-
-            for (auto it = this->client_lookup.begin(); it != client_lookup.end(); it++) {
-                hash_value &client = this->client_lookup[it->first];
-                if ((int)next_msg_pack.content.size() > 0 && allowed(client)) {
-                    success = this->send_chunk(next_msg_pack.content, it->first);
-                    // if we could not send the message to the client, it has quitted from the server
-                    if (!success) {
-                        this->mtx.lock();
-                        alive(client) = false;
-                        this->mtx.unlock();
+            // Only send it if it's content is not empty
+            if ((int)next_msg_pack.content.size() > 0) {
+                // Send it to everyone...
+                for (auto it = this->client_lookup.begin(); it != client_lookup.end(); it++) {
+                    hash_value &client = this->client_lookup[it->first];
+                    // If they are allowed to.
+                    if (allowed(client)) {
+                        success = this->send_chunk(next_msg_pack.content, it->first);
+                        // If we could not send the message to the client, it has quitted from the server
+                        if (!success) {
+                            alive(client) = false;
+                        }
                     }
                 }
             }
