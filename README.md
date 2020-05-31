@@ -4,9 +4,9 @@ Projeto da Disciplina **SSC0142 - Redes de Computadores (2020)**, no qual implem
 
 ## Autores
 
-- Vitor Santana Cordeiro, 10734345
-- Marcelo Isaias de Moraes Junior, 10550218
-- Joao Vitor Silva Ramos, 10734769
+-   Vitor Santana Cordeiro, 10734345
+-   Marcelo Isaias de Moraes Junior, 10550218
+-   Joao Vitor Silva Ramos, 10734769
 
 > O código foi compilado utilizando o compilador `gcc versão 7.5.0`, com `target = Linux GNU x86_64`. O código é feito em `C++11`, usando a `flag -std=c++11` na compilação.
 
@@ -18,12 +18,12 @@ Para iniciar o programa cliente, simplesmente execute o comando `./client`. Siga
 
 ## Comandos disponíveis
 
--`/list`: Lista todos os servidores conhecidos pelo nosso "DNS" (arquivo `dns.txt`);
--`/connect`: Estabelece a conexão com o servidor especificado;
--`/ping`: O servidor retorna "pong" assim que receber a mensagem;
--`/nickname`: Muda o nickname atual do cliente para o novo especificado;
--`/quit`: O cliente fecha a conexão e fecha a aplicação;
-Para mandar mensagens no servidor, apenas digite normalmente no terminal e aperte **ENTER**.
+-   `/list`: Lista todos os servidores conhecidos pelo nosso "DNS" (arquivo `dns.txt`);
+-   `/connect`: Estabelece a conexão com o servidor especificado;
+-   `/ping`: O servidor retorna "pong" assim que receber a mensagem;
+-   `/nickname`: Muda o nickname atual do cliente para o novo especificado;
+-   `/quit`: O cliente fecha a conexão e fecha a aplicação.<br/>
+    Para mandar mensagens no servidor, apenas digite normalmente no terminal e aperte **ENTER**.
 
 ## Aviso
 
