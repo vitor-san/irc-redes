@@ -13,9 +13,17 @@ Projeto da Disciplina **SSC0142 - Redes de Computadores (2020)**, no qual implem
 ## Como usar
 
 Para testar o código, compile-o com o comando `make all`.<br/>
-Depois, digite `./server [port]` em um terminal, sendo port uma porta disponível (e.g. 9001), para abrir um servidor.<br/>
-Para enviar as mensagens, utilize, em outro terminal, o comando `./client localhost [port]`, sendo port a mesma usada anteriormente. Isso executará um cliente que irá se conectar ao servidor aberto anteriormente.<br/>
-Por fim, basta enviar as mensagens, e o servidor irá enviá-las de volta (ou seja, este é um **servidor de echo**).
+Depois, digite `./server` em um terminal. O servidor será iniciado na porta 9001 (essa configuração pode ser mudada por meio do `#define PORT` no arquivo `server.cpp`).<br/>
+Para iniciar o programa cliente, simplesmente execute o comando `./client`. Siga as intruções dadas pelo terminal e conecte a um dos servidores disponíveis no arquivo `dns.txt`. Você pode adicionar novos servidores por meio do mesmo.<br/>
+
+## Comandos disponíveis
+
+-`/list`: Lista todos os servidores conhecidos pelo nosso "DNS" (arquivo `dns.txt`);
+-`/connect`: Estabelece a conexão com o servidor especificado;
+-`/ping`: O servidor retorna "pong" assim que receber a mensagem;
+-`/nickname`: Muda o nickname atual do cliente para o novo especificado;
+-`/quit`: O cliente fecha a conexão e fecha a aplicação;
+Para mandar mensagens no servidor, apenas digite normalmente no terminal e aperte **ENTER**.
 
 ## Aviso
 
