@@ -16,28 +16,35 @@ void handleCtrlC(int signum) { cout << "\nPlease, use the /quit command.\n"; }
 // Thread to send messages to the server
 void send_message(Socket *s) {
     string buffer, cmd;
+    string quit_msg("/quit");
     regex r(RGX_CMD); // RGX_CMD defined in "utils.hpp"
     smatch m;
     vector<string> chunks;
 
     while (running) {
         // Get the message from the client and store it in the buffer
-        getline(cin, buffer);
-        // Parses the message, searching for commands
-        regex_search(buffer, m, r);
-        cmd = m[1].str(); // Gets first command found, if any
-        // If any command where found (following RGX_CMD rules), then execute it
-        if (cmd != "") {
-            if (cmd == "quit") {
-                running = false;
-                exit(EXIT_SUCCESS);
+        if (getline(cin, buffer)) {
+            // Parses the message, searching for commands
+            regex_search(buffer, m, r);
+            cmd = m[1].str(); // Gets first command found, if any
+            // If any command where found (following RGX_CMD rules), then execute it
+            if (cmd != "") {
+                if (cmd == "quit") {
+                    running = false;
+                }
+                s->send_message_from(buffer);
+            } else {
+                // Regular message
+                chunks = break_msg(buffer);
+                for (int i = 0; i < (int)chunks.size(); i++) {
+                    // Send the message to the server
+                    s->send_message_from(chunks[i]);
+                }
             }
-        }
-        // Regular message
-        chunks = break_msg(buffer);
-        for (int i = 0; i < (int)chunks.size(); i++) {
-            // Send the message to the server
-            s->send_message_from(chunks[i]);
+        } else {
+            // Something has ocurred while reading stdin (EOF or another error)
+            running = false;
+            s->send_message_from(quit_msg);
         }
     }
 }
@@ -45,8 +52,15 @@ void send_message(Socket *s) {
 // Thread for receiving messages from the server
 void receive_message(Socket *s) {
     string buffer;
-    // while an error or quit doesn't occur
-    while (running && (s->receive_message_on(buffer) > 0)) {
+    int bytes_read = 0;
+
+    while (running) {
+        bytes_read = s->receive_message_on(buffer);
+        if (bytes_read <= 0) {
+            throw("Error while reading messages from server.");
+            running = false;
+        }
+
         cout << buffer << endl;
     }
 }
@@ -127,6 +141,7 @@ int main(int argc, const char **argv) {
             // Wait until both threads terminate
             send_t.join();
             receive_t.join();
+            cout << "Threads returned\n";
         } else {
             while (quit != 'y' && quit != 'n') {
                 cout << "Do you wanna quit? (y/n)" << endl;

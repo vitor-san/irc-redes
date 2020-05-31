@@ -170,6 +170,7 @@ void Server::receive(Socket *client) {
 
     string buffer, cmd, new_nick;
     string pong_msg("pong");
+    string quit_msg("You have quited successfully!");
     regex r(RGX_CMD); // RGX_CMD defined in "utils.hpp"
     smatch m;
     int status;
@@ -198,7 +199,9 @@ void Server::receive(Socket *client) {
         if (cmd != "") {
             if (cmd == "quit") {
                 set_alive(myself, false);
-                cout << "Client" << nick(myself) << "quited" << endl;
+                this->send_chunk(quit_msg, client);
+                // Log
+                cout << "Client " << nick(myself) << " quited" << endl;
             } else if (cmd == "ping") {
                 // Send "pong" to the client
                 set_alive(myself, this->send_chunk(pong_msg, client));
