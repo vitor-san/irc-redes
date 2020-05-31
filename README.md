@@ -22,8 +22,9 @@ Para iniciar o programa cliente, simplesmente execute o comando `./client`. Siga
 -   `/connect`: Estabelece a conexão com o servidor especificado;
 -   `/ping`: O servidor retorna "pong" assim que receber a mensagem;
 -   `/nickname`: Muda o nickname atual do cliente para o novo especificado;
--   `/quit`: O cliente fecha a conexão e fecha a aplicação.<br/>
-    Para mandar mensagens no servidor, apenas digite normalmente no terminal e aperte **ENTER**.
+-   `/quit`: O cliente fecha a conexão e fecha a aplicação.
+
+> Para mandar mensagens no servidor, apenas digite normalmente no terminal e aperte **ENTER**.
 
 ## Aviso
 
