@@ -1,5 +1,6 @@
 #include "socket.hpp"
 #include "utils.hpp"
+#include <chrono>
 #include <csignal>
 #include <cstdlib>
 #include <iostream>
@@ -20,6 +21,7 @@ void send_message(Socket *s) {
     regex r(RGX_CMD); // RGX_CMD defined in "utils.hpp"
     smatch m;
     vector<string> chunks;
+    bool success = false;
 
     while (running) {
         // Get the message from the client and store it in the buffer
@@ -32,19 +34,30 @@ void send_message(Socket *s) {
                 if (cmd == "quit") {
                     running = false;
                 }
-                s->send_message_from(buffer);
+                success = s->send_message_from(buffer);
+                while (!success) {
+                    success = s->send_message_from(buffer);
+                }
             } else {
                 // Regular message
                 chunks = break_msg(buffer);
                 for (int i = 0; i < (int)chunks.size(); i++) {
                     // Send the message to the server
-                    s->send_message_from(chunks[i]);
+                    success = s->send_message_from(chunks[i]);
+                    while (!success) {
+                        success = s->send_message_from(buffer);
+                    }
                 }
             }
         } else {
             // Something has ocurred while reading stdin (EOF or another error)
             running = false;
-            s->send_message_from(quit_msg);
+            success = s->send_message_from(quit_msg);
+            while (!success) {
+                // The server has to receive the /quit message, otherwise de client
+                // will not be erased from the client hash table.
+                success = s->send_message_from(quit_msg);
+            }
         }
     }
 }
@@ -52,16 +65,16 @@ void send_message(Socket *s) {
 // Thread for receiving messages from the server
 void receive_message(Socket *s) {
     string buffer;
-    string ack_msg("/ack");
     int bytes_read = 0;
 
     while (running) {
         bytes_read = s->receive_message_on(buffer);
+
         if (bytes_read <= 0) {
             throw("Error while reading messages from server.");
             running = false;
         }
-        s->send_message_from(ack_msg);
+
         cout << buffer << endl;
     }
 }
@@ -139,10 +152,11 @@ int main(int argc, const char **argv) {
             // Create two threads, one for receiving and one for sending messages
             thread send_t(send_message, my_socket);
             thread receive_t(receive_message, my_socket);
+
             // Wait until both threads terminate
             send_t.join();
             receive_t.join();
-            cout << "Threads returned\n";
+
         } else {
             while (quit != 'y' && quit != 'n') {
                 cout << "Do you wanna quit? (y/n)" << endl;

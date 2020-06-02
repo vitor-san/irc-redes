@@ -27,7 +27,6 @@ struct msg_info {
 };
 
 // class Channel {
-
 // };
 
 class Server {
@@ -68,7 +67,14 @@ class Server {
 
 /* ---------------------------- PRIVATE METHODS ----------------------------- */
 
-// Changes the nickname from a client
+/*
+ *  Set the nickname of the client to new_nick, checks if the name is already
+ *  in use and if its size is between 5 and 50.
+ *
+ *  Parameters:
+ *      client(Socket*): The socket of the client
+ *      new_nick(string): The new nickname of the client
+ */
 void Server::set_nickname(Socket *client, string &new_nick) {
 
     msg_info msg_pack;
@@ -99,6 +105,13 @@ void Server::set_nickname(Socket *client, string &new_nick) {
     }
 }
 
+/*
+ *  Modify the value alive from the client passed.
+ *
+ *  Parameters:
+ *      hash_value& cli: tuple of client to modify his value alive
+ *      bool is_alive: new value of alive
+ */
 void Server::set_alive(hash_value &cli, bool is_alive) {
     // Prevent conflicts
     this->mtx.lock();
@@ -108,10 +121,11 @@ void Server::set_alive(hash_value &cli, bool is_alive) {
 
 void Server::check_password(Socket *client) {
     string buffer;
+    string pass_prompt("Enter the server's password:");
 
     // Stays in the loop until the correct password is provided
     while (true) {
-        client->send_message_from(string("Enter the server's password:"));
+        this->send_chunk(pass_prompt, client);
         client->receive_message_on(buffer);
         if (!strcmp(buffer.c_str(), PASSWORD)) {
             return;
@@ -121,6 +135,7 @@ void Server::check_password(Socket *client) {
 
 /*
     Just adds the nickname of the client to the message.
+
     Parameters:
         chunk(string): the message
         client(Socket*): The socket of the client
@@ -134,7 +149,7 @@ string Server::prepare_msg(string &chunk, Socket *client) {
 
 /*
     Tries to send the message chunk to the client.
-    Returns false in case of error
+    Returns false in case of error.
 */
 bool Server::send_chunk(string &chunk, Socket *client) {
     bool success = false;
@@ -146,22 +161,18 @@ bool Server::send_chunk(string &chunk, Socket *client) {
     for (int t = 0; t < MAX_RET; t++) {
         success = client->send_message_from(chunk);
         if (success) {
-            status = client->receive_message_on(buffer);
-            if (status > 0) {
-                // Parses the message, searching for commands
-                regex_search(buffer, m, r);
-                // Gets first command found, if any
-                cmd = m[1].str();
-                if (cmd == "ack") {
-                    return true;
-                    cout << "CLIENTE RECEBEU" << endl;
-                }
-            }
+            return true;
         }
     }
+    cout << "Failed to deliver message to " << nick(this->client_lookup[client]) << ". Disconnecting it..." << endl;
     return false;
 }
 
+/*
+ *  Just pushes a message to the message queue
+ *  Parameters:
+ *      msg_info& pack: the message to be pushed
+ */
 void Server::send_to_queue(msg_info &pack) {
     // Prevent conflicts
     this->mtx.lock();
@@ -181,7 +192,12 @@ Server::Server(int port) : listener("any", port) {
     }
 }
 
-// Method to handle messages received from a specific client (socket)
+/*
+ *  Method to handle messages received from a specific client (socket)
+ *
+ *  Parameters:
+ *      client(Socket*): The socket of the client
+ */
 void Server::receive(Socket *client) {
 
     string buffer, cmd, new_nick;
@@ -194,7 +210,7 @@ void Server::receive(Socket *client) {
     msg_info msg_pack;
 
     // Check if this client knows the password
-    // this->check_password(client);
+    this->check_password(client);
     allowed(myself) = true;
 
     client->send_message_from(string("\nWelcome to our server!\n\n"));
@@ -266,7 +282,7 @@ void Server::accept() {
     }
 }
 
-// Method for broadcasting messages from the queue
+// Method for broadcasting messages from the msg_queue
 void Server::broadcast() {
     msg_info next_msg_pack;
     bool success = false;

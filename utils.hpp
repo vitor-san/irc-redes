@@ -21,6 +21,7 @@ using server_dns = std::map<std::string, server_data>; // Maps a name to a serve
 
 /*
  *   Check for errors. If any, print them to stderr and exit the program.
+ *
  *   Parameters:
  *       status (int): status to be checked (only -1 represents an error).
  *       msg (const char array): message to be printed to stderr if an error is encountered.
@@ -29,6 +30,7 @@ void check_error(int status, int error_num, const char *msg);
 
 /*
  *   Breaks the message into chunks of, at max, MSG_SIZE+1 chars (including '\0').
+ *
  *   Parameters:
  *       msg (string): message to be broken in smaller parts (if possible).
  *   Returns:
@@ -37,6 +39,13 @@ void check_error(int status, int error_num, const char *msg);
  */
 std::vector<std::string> break_msg(std::string msg);
 
+/*
+ *   Get all the tuples(name,ip,port) from the dns file, which tries to reproduce the
+ *   behavior of a dns server.
+ *
+ *   Return:
+ *       DNS(server_dns): map with all the tuples from the file.
+ */
 server_dns get_dns();
 
 #endif

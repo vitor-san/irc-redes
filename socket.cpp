@@ -6,6 +6,7 @@ Socket::Socket() {}
 
 /*
  *   Initializes a socket object with a previous allocated socket.
+ *
  *   Parameters:
  *      target_fd (int): the previous allocated socket file descriptor
  */
@@ -18,6 +19,7 @@ Socket::Socket(int target_fd) {
 
 /*
  *   Sets the ip and the port of the target socket.
+ *
  *   Parameters:
  *       ip (string): the ip to be setted; if "any" set it to INADDR_ANY; if "localhost" set it to 127.0.0.1.
  *       port (uint16_t): the port to be setted.
@@ -54,6 +56,7 @@ Socket::Socket(std::string ip, uint16_t port) {
 
 /*
  *   Makes the socket enters into a listening state, with 'max_connections' connections at the same time.
+ *
  *   Parameters:
  *       max_connections (int): the maximum number of connections that the socket can hold at any given time.
  *   Returns:
@@ -76,6 +79,7 @@ bool Socket::listening(int max_connections) {
  *   Then, allocates a new socket to conversate with that client.
  *   Note that the new socket may be in another port
  *   (i.e. different from where the listening socket was estabilished on).
+ *
  *   Returns:
  *       Socket: the target socket, now connected.
  */
@@ -87,6 +91,7 @@ Socket *Socket::accept_connection() {
 
 /*
  *   Try a connection with the target socket.
+ *
  *   Returns:
  *       bool: whether or not the operation was successful.
  */
@@ -98,8 +103,8 @@ bool Socket::connect_to_target() {
 }
 
 /*
- *   Try to send a message through the socket. If the message surpass 2048 characters, it is splited into chunks of 2048
- *   characters each (including \0), and send one by one.
+ *   Try to send a message through the socket.
+ *
  *   Parameters:
  *      buffer (string): The text to be sent.
  *   Returns:
@@ -117,6 +122,7 @@ bool Socket::send_message_from(std::string buffer) {
 
 /*
  *   Receives a message from the target socket.
+ *
  *   Parameters:
  *      buffer (string): the message will be saved here.
  *   Returns:
