@@ -16,7 +16,7 @@ Para testar o código, compile-o com o comando `make all`.<br/><br/>
 Depois, digite `./server` em um terminal. O servidor será iniciado na porta 9001 (essa configuração pode ser mudada por meio do `#define PORT` no arquivo `server.cpp`).<br/><br/>
 Para iniciar o programa cliente, simplesmente execute o comando `./client`. Siga as intruções dadas pelo terminal e conecte a um dos servidores disponíveis no arquivo `dns.txt`. Você pode adicionar novos servidores por meio do mesmo.<br/><br/>
 Para permitir conexões fora da rede local, você deve ou fazer port-forwarding em seu ponto de acesso ou rodar o seguinte comando em outro terminal:
-> ssh -R 9001:localhost:9001 serveo.net
+> ssh -R 9001:localhost:9001 serveo.net<br/>
 Ele comecará um tunelamento SSH reverso que te permitirá acessar o servidor pelo DNS `main.ggc`.<br/>
 Caso decidir fazer port-forwarding, lembre-se de registrar seu IP e porta no arquivo `dns.txt`.
 
