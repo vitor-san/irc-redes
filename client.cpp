@@ -14,7 +14,9 @@ bool running = true;
 
 void handleCtrlC(int signum) { cout << "\nPlease, use the /quit command.\n"; }
 
-// Thread to send messages to the server
+/*
+    Thread to send messages to the server
+*/
 void send_message(Socket *s) {
     string buffer, cmd;
     string quit_msg("/quit");
@@ -62,7 +64,9 @@ void send_message(Socket *s) {
     }
 }
 
-// Thread for receiving messages from the server
+/*
+    Thread for receiving messages from the server
+*/
 void receive_message(Socket *s) {
     string buffer;
     int bytes_read = 0;
@@ -79,6 +83,9 @@ void receive_message(Socket *s) {
     }
 }
 
+/*
+    Function used to list all servers from our DNS.
+*/
 void list_servers(server_dns &DNS) {
     cout << endl;
     for (auto it = DNS.begin(); it != DNS.end(); it++) {
@@ -123,20 +130,24 @@ int main(int argc, const char **argv) {
         getline(cin, cmd);
         // Parses the input, searching for commands
         regex_search(cmd, m, r);
-        cmd = m[1].str(); // Gets command found, if any
+        // Gets command found, if any
+        cmd = m[1].str();
         if (cmd == "connect") {
             server_name = m[2].str();
             // Get the IP and the port from the DNS table
             is_in_table = connect_to(DNS, server_name, server_ip, server_port);
             if (!is_in_table) {
+                system("clear");
                 cout << "\nCould not find the specified server in our DNS table.\n\n";
                 continue;
             }
             cmd.clear();
         } else if (cmd == "list") {
+            system("clear");
             list_servers(DNS);
             continue;
         } else {
+            system("clear");
             cout << "Please, provide a valid command for starting.\n\n";
             continue;
         }
@@ -173,6 +184,7 @@ int main(int argc, const char **argv) {
 
         signal(SIGINT, SIG_DFL);
         delete my_socket;
+        system("clear");
     }
 
     return 0;

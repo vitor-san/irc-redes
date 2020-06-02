@@ -134,23 +134,24 @@ void Server::check_password(Socket *client) {
 }
 
 /*
-    Just adds the nickname of the client to the message.
+ *  Just adds the nickname of the client to the message.
+ *
+ *  Parameters:
+ *      chunk(string): the message
+ *      client(Socket *): The socket of the client
+ *  Returns:
+ *      msg: the string with nickname + message
+ */
 
-    Parameters:
-        chunk(string): the message
-        client(Socket*): The socket of the client
-    Returns:
-        msg: the string with nickname + message
-*/
 string Server::prepare_msg(string &chunk, Socket *client) {
     string msg = nick(this->client_lookup[client]) + ": " + chunk;
     return msg;
 }
 
 /*
-    Tries to send the message chunk to the client.
-    Returns false in case of error.
-*/
+ *  Tries to send the message chunk to the client.
+ *  Returns false in case of error.
+ */
 bool Server::send_chunk(string &chunk, Socket *client) {
     bool success = false;
     int status;
@@ -262,7 +263,9 @@ void Server::receive(Socket *client) {
     this->client_lookup.erase(client);
 }
 
-// Method for accepting new clients (socket connections)
+/*
+    Method for accepting new clients (socket connections)
+*/
 void Server::accept() {
     Socket *client;
     string nickname = "unknown";
@@ -282,7 +285,9 @@ void Server::accept() {
     }
 }
 
-// Method for broadcasting messages from the msg_queue
+/*
+    Method for broadcasting messages from the msg_queue
+*/
 void Server::broadcast() {
     msg_info next_msg_pack;
     bool success = false;
