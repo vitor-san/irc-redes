@@ -1,2 +1,2 @@
-main.ggc 127.0.0.1 9001
+main.ggc 159.89.214.31 9001
 test.ggc localhost 9001

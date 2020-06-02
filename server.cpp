@@ -138,10 +138,26 @@ string Server::prepare_msg(string &chunk, Socket *client) {
 */
 bool Server::send_chunk(string &chunk, Socket *client) {
     bool success = false;
+    int status;
+    string buffer, cmd;
+    regex r(RGX_CMD); // RGX_CMD defined in "utils.hpp"
+    smatch m;
+
     for (int t = 0; t < MAX_RET; t++) {
         success = client->send_message_from(chunk);
-        if (success)
-            return true;
+        if (success) {
+            status = client->receive_message_on(buffer);
+            if (status > 0) {
+                // Parses the message, searching for commands
+                regex_search(buffer, m, r);
+                // Gets first command found, if any
+                cmd = m[1].str();
+                if (cmd == "ack") {
+                    return true;
+                    cout << "CLIENTE RECEBEU" << endl;
+                }
+            }
+        }
     }
     return false;
 }

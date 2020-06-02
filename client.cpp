@@ -52,6 +52,7 @@ void send_message(Socket *s) {
 // Thread for receiving messages from the server
 void receive_message(Socket *s) {
     string buffer;
+    string ack_msg("/ack");
     int bytes_read = 0;
 
     while (running) {
@@ -60,7 +61,7 @@ void receive_message(Socket *s) {
             throw("Error while reading messages from server.");
             running = false;
         }
-
+        s->send_message_from(ack_msg);
         cout << buffer << endl;
     }
 }
