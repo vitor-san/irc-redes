@@ -474,17 +474,13 @@ void Server::broadcast() {
 /* ---------------------------- DRIVER FUNCTION ----------------------------- */
 
 int main() {
+    Server IRC(PORT);
 
-    /* ---------------------------- DRIVER FUNCTION ----------------------------- */
+    thread accept_t = IRC.accept_thread();
+    thread broadcast_t = IRC.broadcast_thread();
 
-    int main() {
-        Server IRC(PORT);
+    accept_t.join();
+    broadcast_t.join();
 
-        thread accept_t = IRC.accept_thread();
-        thread broadcast_t = IRC.broadcast_thread();
-
-        accept_t.join();
-        broadcast_t.join();
-
-        return 0;
-    }
+    return 0;
+}
