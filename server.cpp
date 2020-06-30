@@ -202,7 +202,6 @@ void Server::remove_from_channel(Socket *client) {
     this->channels[my_channel].members.erase(client);
 
     int members_on_channel = this->channels[my_channel].members.size();
-    cout << members_on_channel << "TENHO ISSO DE MEMBROS AGR Q APAGUEI" << endl;
     // If there is nobody on the channel we need to delete it
     if (members_on_channel == 0 && my_channel != "#general") {
         this->channels.erase(my_channel);
@@ -212,6 +211,12 @@ void Server::remove_from_channel(Socket *client) {
     else if (this->channels[my_channel].admin == client) {
         auto next_admin_ptr = this->channels[my_channel].members.begin();
         this->channels[my_channel].admin = next_admin_ptr->first;
+        // Let they know that they became the admin
+        hash_value &new_admin = this->channels[my_channel].members[next_admin_ptr->first];
+        msg_info msg_pack;
+        msg_pack.content = nick(new_admin) + " became the new admin!";
+        msg_pack.sender = next_admin_ptr->first;
+        this->send_to_queue(msg_pack);
     }
 }
 
@@ -453,7 +458,6 @@ void Server::broadcast() {
                          it++) {
 
                         hash_value &client = this->channels[c_name].members[it->first];
-
                         // If they are allowed to.
                         if (allowed(client)) {
                             success = this->send_chunk(next_msg_pack.content, it->first);
