@@ -20,8 +20,9 @@
 class Socket {
   private:
     struct sockaddr_in target_address;
-    struct sockaddr *con_address;
-    int target_socket_fd;
+    // struct sockaddr *con_address;
+    int my_fd;
+    // int peer_fd;
     Socket(); // "Disables" default constructor
 
   public:

@@ -1,5 +1,5 @@
 #include "socket.hpp"
-#include <cstdlib>
+// #include <cstdlib>
 
 // Default constructor. Not used here.
 Socket::Socket() {}
@@ -11,8 +11,8 @@ Socket::Socket() {}
  *      target_fd (int): the previous allocated socket file descriptor
  */
 Socket::Socket(int target_fd) {
-    this->target_socket_fd = target_fd;
-    this->target_address.sin_family = 0;
+    this->my_fd = target_fd;
+    this->target_address.sin_family = AF_INET;
     this->target_address.sin_port = 0;
     this->target_address.sin_addr.s_addr = 0;
 }
@@ -47,7 +47,7 @@ bool Socket::set_target(std::string ip, uint16_t port) {
  *   and treatment of the parameters.
  */
 Socket::Socket(std::string ip, uint16_t port) {
-    this->target_socket_fd = socket(AF_INET, SOCK_STREAM, 6); // Using TCP Protocol
+    this->my_fd = socket(AF_INET, SOCK_STREAM, 0); // Using TCP Protocol
     this->target_address.sin_family = AF_INET;
     if (!this->set_target(ip, port)) {
         throw("Could not create socket (invalid IP).");
@@ -63,10 +63,9 @@ Socket::Socket(std::string ip, uint16_t port) {
  *       bool: whether or not the operation was successful.
  */
 bool Socket::listening(int max_connections) {
-    int status_bind =
-        bind(this->target_socket_fd, (struct sockaddr *)&(this->target_address), sizeof(this->target_address));
+    int status_bind = bind(this->my_fd, (struct sockaddr *)&(this->target_address), sizeof(this->target_address));
     check_error(status_bind, -1, "Binding failed");
-    int status_listen = listen(this->target_socket_fd, max_connections);
+    int status_listen = listen(this->my_fd, max_connections);
     check_error(status_listen, -1, "Listening failed");
 
     if (status_bind == -1 || status_listen == -1)
@@ -84,8 +83,7 @@ bool Socket::listening(int max_connections) {
  *       Socket: the target socket, now connected.
  */
 Socket *Socket::accept_connection() {
-    socklen_t size_con = (socklen_t)sizeof(this->con_address);
-    int new_socket_fd = accept(this->target_socket_fd, (this->con_address), &size_con);
+    int new_socket_fd = accept(this->my_fd, NULL, NULL);
     Socket *s = new Socket(new_socket_fd);
     return s;
 }
@@ -93,33 +91,14 @@ Socket *Socket::accept_connection() {
 // Get back the IP of the client
 std::string Socket::get_client_IP() {
     // struct sockaddr_in addr;
-    // int addr_len;
-
-    // res = getsockname(ConnectFD, (struct sockaddr *)&addr, &addr_len);
-
-    char *ip = nullptr;
-
-    // char *ip = inet_ntoa(this->con_address.sin_addr);
-
-    switch (this->con_address.sa_family) {
-    case AF_INET: {
-        struct sockaddr_in *addr_in = (struct sockaddr_in *)this->con_address;
-        ip = (char *)malloc(INET_ADDRSTRLEN);
-        inet_ntop(AF_INET, &(addr_in->sin_addr), ip, INET_ADDRSTRLEN);
-        break;
-    }
-    case AF_INET6: {
-        struct sockaddr_in6 *addr_in6 = (struct sockaddr_in6 *)this->con_address;
-        ip = (char *)malloc(INET6_ADDRSTRLEN);
-        inet_ntop(AF_INET6, &(addr_in6->sin6_addr), ip, INET6_ADDRSTRLEN);
-        break;
-    }
-    default:
-        break;
-    }
-
-    return std::string(ip);
-    // free(ip);
+    // socklen_t addr_size = sizeof(struct sockaddr_in);
+    // int res = getpeername(this->my_fd, (struct sockaddr *)&addr, &addr_size);
+    // char *clientip = new char[20];
+    // strcpy(clientip, inet_ntop(addr.sin_addr));
+    // std::cout << "HEEEEY" << clientip << std::endl;
+    // delete[] clientip;
+    // return std::string("salve");
+    return std::string("salve");
 }
 
 /*
@@ -129,8 +108,7 @@ std::string Socket::get_client_IP() {
  *       bool: whether or not the operation was successful.
  */
 bool Socket::connect_to_target() {
-    int status =
-        connect(this->target_socket_fd, (struct sockaddr *)&(this->target_address), sizeof(this->target_address));
+    int status = connect(this->my_fd, (struct sockaddr *)&(this->target_address), sizeof(this->target_address));
     check_error(status, -1, "Connection failed");
     return status == -1 ? false : true;
 }
@@ -146,7 +124,7 @@ bool Socket::connect_to_target() {
 bool Socket::send_message_from(std::string buffer) {
     const char *msg = buffer.c_str();
 
-    int status = send(this->target_socket_fd, msg, strlen(msg) + 1, 0);
+    int status = send(this->my_fd, msg, strlen(msg) + 1, 0);
     check_error(status, -1, "Message delivery failed");
     if (status == -1)
         return false; // Error
@@ -164,7 +142,7 @@ bool Socket::send_message_from(std::string buffer) {
 int Socket::receive_message_on(std::string &buffer) {
     const char *c_msg = new char[MSG_SIZE + NICK_SIZE + 1]; // +1 because of \0
 
-    int status = recv(this->target_socket_fd, (void *)c_msg, (MSG_SIZE + 1) * sizeof(char), 0);
+    int status = recv(this->my_fd, (void *)c_msg, (MSG_SIZE + 1) * sizeof(char), 0);
     check_error(status, -1, "Failed to receive message");
 
     if (status != -1) {
@@ -183,4 +161,4 @@ int Socket::receive_message_on(std::string &buffer) {
 }
 
 // Destructor method
-Socket::~Socket() { close(this->target_socket_fd); }
+Socket::~Socket() { close(this->my_fd); }
