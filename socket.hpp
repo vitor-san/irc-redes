@@ -19,23 +19,21 @@
  */
 class Socket {
   private:
-    struct sockaddr_in target_address;
-    // struct sockaddr *con_address;
+    struct sockaddr_in address;
     int my_fd;
-    // int peer_fd;
     Socket(); // "Disables" default constructor
 
   public:
-    Socket(int target_fd);
+    Socket(int fd, sockaddr_in address);
     Socket(std::string name, uint16_t port);
     ~Socket();
-    bool set_target(std::string ip, uint16_t port);
-    std::string get_client_IP();
+    bool set_address(std::string ip, uint16_t port);
+    std::string get_IP_address();
     bool listening(int max_connections); // Server-only
     Socket *accept_connection();         // Server-only
-    bool connect_to_target();            // Client-only
-    bool send_message_from(std::string buffer);
-    int receive_message_on(std::string &buffer);
+    bool connect_to_address();           // Client-only
+    bool send_message(std::string buffer);
+    int receive_message(std::string &buffer);
 };
 
 #endif

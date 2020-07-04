@@ -139,7 +139,7 @@ void Server::check_password(Socket *client) {
     // Stays in the loop until the correct password is provided
     while (true) {
         this->send_chunk(pass_prompt, client);
-        client->receive_message_on(buffer);
+        client->receive_message(buffer);
         if (!strcmp(buffer.c_str(), PASSWORD)) {
             return;
         }
@@ -174,7 +174,7 @@ bool Server::send_chunk(string &chunk, Socket *client) {
     smatch m;
 
     for (int t = 0; t < MAX_RET; t++) {
-        success = client->send_message_from(chunk);
+        success = client->send_message(chunk);
         if (success) {
             return true;
         }
@@ -227,7 +227,7 @@ bool Server::change_channel(Socket *client, string new_channel) {
     // Guard clause
     if (new_channel[0] != '#') {
         // Channel name is not in the correct format
-        client->send_message_from(string("The Channel name should be preceded by a '#'. Ex: /join #test"));
+        client->send_message(string("The Channel name should be preceded by a '#'. Ex: /join #test"));
         return false;
     }
 
@@ -242,18 +242,17 @@ bool Server::change_channel(Socket *client, string new_channel) {
 
     // If new channel does not exist
     if (this->channels.find(new_channel) == this->channels.end()) {
-
+        // Server log
         cout << "Didn't find the channel " << new_channel << ", so I'm creating it." << endl;
         // Create it and set the creator as the admin
         Channel c;
         c.admin = client;
         c.members.insert(make_pair(client, myself));
         this->channels[new_channel] = c;
-        this->which_channel[client] = new_channel;
     } else {
         this->channels[new_channel].members.insert(make_pair(client, myself));
-        this->which_channel[client] = new_channel;
     }
+    this->which_channel[client] = new_channel;
 
     mtx.unlock();
     return true;
@@ -309,7 +308,7 @@ void Server::receive(Socket *client) {
     // this->check_password(client);
     allowed(myself) = true;
 
-    client->send_message_from(string("Welcome to our server!\n"));
+    client->send_message(string("Welcome to our server!\n"));
 
     msg_pack.content = nick(myself) + " has entered the chat!";
     msg_pack.sender = client;
@@ -329,7 +328,7 @@ void Server::receive(Socket *client) {
         my_channel = this->which_channel[client];
         hash_value &myself = this->channels[my_channel].members[client];
         // Receive next message
-        status = client->receive_message_on(buffer);
+        status = client->receive_message(buffer);
         if (status <= 0) {
             // An error ocurred
             break;
@@ -359,13 +358,12 @@ void Server::receive(Socket *client) {
                 // Get the channel name from the message
                 new_channel = m[2].str();
                 if ((int)new_channel.size() > MAX_CHANNEL_LEN) {
-                    client->send_message_from(string("The name of a Channel can't be greater than " +
-                                                     to_string(MAX_CHANNEL_LEN) + " characters."));
+                    client->send_message(string("The name of a Channel can't be greater than " +
+                                                to_string(MAX_CHANNEL_LEN) + " characters."));
                 } else {
                     if (this->change_channel(client, new_channel)) {
                         // The operation was successful
-                        client->send_message_from(
-                            string("You changed from channel " + my_channel + " to " + new_channel));
+                        client->send_message(string("You changed from channel " + my_channel + " to " + new_channel));
                         channel_notification(my_channel, string(nick(myself) + " has left the channel."));
                         my_channel = new_channel;
                         hash_value &myself = this->channels[my_channel].members[client];
@@ -389,12 +387,12 @@ void Server::receive(Socket *client) {
                     }
                 }
                 if (!found) {
-                    client->send_message_from(string("The requested user is not on this channel!"));
+                    client->send_message(string("The requested user is not on this channel!"));
                 } else {
                     hash_value &target_tup = this->channels[my_channel].members[target];
                     if (cmd == "kick") {
                         this->change_channel(target, "#general");
-                        target->send_message_from(string(nick(myself) + " kicked you from the channel."));
+                        target->send_message(string(nick(myself) + " kicked you from the channel."));
                         this->channel_notification(my_channel,
                                                    string(nick(target_tup) + " has been kicked from the channel."));
                     } else if (cmd == "mute") {
@@ -404,9 +402,9 @@ void Server::receive(Socket *client) {
                         muted(target_tup) = false;
                         this->channel_notification(my_channel, string(nick(target_tup) + " has been unmuted."));
                     } else if (cmd == "whois") {
-                        string target_ip = target->get_client_IP();
-                        client->send_message_from(
-                            string("User" + nick(target_tup) + "has the IP address " + target_ip + "."));
+                        string target_ip = target->get_IP_address();
+                        client->send_message(
+                            string("User " + nick(target_tup) + " has the IP address " + target_ip + "."));
                     }
                 }
             }

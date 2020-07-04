@@ -1,5 +1,6 @@
 #include "socket.hpp"
-// #include <cstdlib>
+#include <cstdlib>
+#include <iostream>
 
 // Default constructor. Not used here.
 Socket::Socket() {}
@@ -10,11 +11,9 @@ Socket::Socket() {}
  *   Parameters:
  *      target_fd (int): the previous allocated socket file descriptor
  */
-Socket::Socket(int target_fd) {
-    this->my_fd = target_fd;
-    this->target_address.sin_family = AF_INET;
-    this->target_address.sin_port = 0;
-    this->target_address.sin_addr.s_addr = 0;
+Socket::Socket(int fd, struct sockaddr_in address) {
+    this->my_fd = fd;
+    this->address = address;
 }
 
 /*
@@ -26,15 +25,15 @@ Socket::Socket(int target_fd) {
  *   Returns:
  *       bool: whether or not the operation was successful.
  */
-bool Socket::set_target(std::string ip, uint16_t port) {
-    this->target_address.sin_port = htons(port);
+bool Socket::set_address(std::string ip, uint16_t port) {
+    this->address.sin_port = htons(port);
 
     if (ip == "any")
-        this->target_address.sin_addr.s_addr = INADDR_ANY;
+        this->address.sin_addr.s_addr = INADDR_ANY;
     else {
         if (ip == "localhost")
             ip = "127.0.0.1";
-        int status = inet_aton(ip.c_str(), &(this->target_address.sin_addr));
+        int status = inet_aton(ip.c_str(), &(this->address.sin_addr));
         check_error(status, 0, "Conversion of IP failed");
         return status == 0 ? false : true;
     }
@@ -48,8 +47,8 @@ bool Socket::set_target(std::string ip, uint16_t port) {
  */
 Socket::Socket(std::string ip, uint16_t port) {
     this->my_fd = socket(AF_INET, SOCK_STREAM, 0); // Using TCP Protocol
-    this->target_address.sin_family = AF_INET;
-    if (!this->set_target(ip, port)) {
+    this->address.sin_family = AF_INET;
+    if (!this->set_address(ip, port)) {
         throw("Could not create socket (invalid IP).");
     }
 }
@@ -63,7 +62,7 @@ Socket::Socket(std::string ip, uint16_t port) {
  *       bool: whether or not the operation was successful.
  */
 bool Socket::listening(int max_connections) {
-    int status_bind = bind(this->my_fd, (struct sockaddr *)&(this->target_address), sizeof(this->target_address));
+    int status_bind = bind(this->my_fd, (struct sockaddr *)&(this->address), sizeof(this->address));
     check_error(status_bind, -1, "Binding failed");
     int status_listen = listen(this->my_fd, max_connections);
     check_error(status_listen, -1, "Listening failed");
@@ -83,22 +82,20 @@ bool Socket::listening(int max_connections) {
  *       Socket: the target socket, now connected.
  */
 Socket *Socket::accept_connection() {
-    int new_socket_fd = accept(this->my_fd, NULL, NULL);
-    Socket *s = new Socket(new_socket_fd);
+    struct sockaddr_in peer_addr;
+    socklen_t addr_size = sizeof(peer_addr);
+
+    int new_socket_fd = accept(this->my_fd, (sockaddr *)&peer_addr, &addr_size);
+    Socket *s = new Socket(new_socket_fd, peer_addr);
     return s;
 }
 
-// Get back the IP of the client
-std::string Socket::get_client_IP() {
-    // struct sockaddr_in addr;
-    // socklen_t addr_size = sizeof(struct sockaddr_in);
-    // int res = getpeername(this->my_fd, (struct sockaddr *)&addr, &addr_size);
-    // char *clientip = new char[20];
-    // strcpy(clientip, inet_ntop(addr.sin_addr));
-    // std::cout << "HEEEEY" << clientip << std::endl;
-    // delete[] clientip;
-    // return std::string("salve");
-    return std::string("salve");
+// Get back the IP of this socket's address
+std::string Socket::get_IP_address() {
+    struct in_addr net_addr = this->address.sin_addr;
+    char ipv4[INET_ADDRSTRLEN];
+    inet_ntop(AF_INET, &net_addr, ipv4, sizeof(ipv4));
+    return std::string(ipv4);
 }
 
 /*
@@ -107,8 +104,8 @@ std::string Socket::get_client_IP() {
  *   Returns:
  *       bool: whether or not the operation was successful.
  */
-bool Socket::connect_to_target() {
-    int status = connect(this->my_fd, (struct sockaddr *)&(this->target_address), sizeof(this->target_address));
+bool Socket::connect_to_address() {
+    int status = connect(this->my_fd, (struct sockaddr *)&(this->address), sizeof(this->address));
     check_error(status, -1, "Connection failed");
     return status == -1 ? false : true;
 }
@@ -121,7 +118,7 @@ bool Socket::connect_to_target() {
  *   Returns:
  *      bool: whether or not the operation was successful.
  */
-bool Socket::send_message_from(std::string buffer) {
+bool Socket::send_message(std::string buffer) {
     const char *msg = buffer.c_str();
 
     int status = send(this->my_fd, msg, strlen(msg) + 1, 0);
@@ -139,7 +136,7 @@ bool Socket::send_message_from(std::string buffer) {
  *   Returns:
  *      int: the number of bytes read. Returns -1 in case of an error.
  */
-int Socket::receive_message_on(std::string &buffer) {
+int Socket::receive_message(std::string &buffer) {
     const char *c_msg = new char[MSG_SIZE + NICK_SIZE + 1]; // +1 because of \0
 
     int status = recv(this->my_fd, (void *)c_msg, (MSG_SIZE + 1) * sizeof(char), 0);

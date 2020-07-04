@@ -36,29 +36,29 @@ void send_message(Socket *s) {
                 if (cmd == "quit") {
                     running = false;
                 }
-                success = s->send_message_from(buffer);
+                success = s->send_message(buffer);
                 while (!success) {
-                    success = s->send_message_from(buffer);
+                    success = s->send_message(buffer);
                 }
             } else {
                 // Regular message
                 chunks = break_msg(buffer);
                 for (int i = 0; i < (int)chunks.size(); i++) {
                     // Send the message to the server
-                    success = s->send_message_from(chunks[i]);
+                    success = s->send_message(chunks[i]);
                     while (!success) {
-                        success = s->send_message_from(buffer);
+                        success = s->send_message(buffer);
                     }
                 }
             }
         } else {
             // Something has ocurred while reading stdin (EOF or another error)
             running = false;
-            success = s->send_message_from(quit_msg);
+            success = s->send_message(quit_msg);
             while (!success) {
                 // The server has to receive the /quit message, otherwise de client
                 // will not be erased from the client hash table.
-                success = s->send_message_from(quit_msg);
+                success = s->send_message(quit_msg);
             }
         }
     }
@@ -72,7 +72,7 @@ void receive_message(Socket *s) {
     int bytes_read = 0;
 
     while (running) {
-        bytes_read = s->receive_message_on(buffer);
+        bytes_read = s->receive_message(buffer);
 
         if (bytes_read <= 0) {
             throw("Error while reading messages from server.");
@@ -154,7 +154,7 @@ int main(int argc, const char **argv) {
         // Create a socket
         my_socket = new Socket(server_ip, server_port);
         // Attempts to connect to the target (a server)
-        connected = my_socket->connect_to_target();
+        connected = my_socket->connect_to_address();
 
         if (connected) {
             system("clear");
