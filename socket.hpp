@@ -20,6 +20,7 @@
 class Socket {
   private:
     struct sockaddr_in target_address;
+    struct sockaddr *con_address;
     int target_socket_fd;
     Socket(); // "Disables" default constructor
 
@@ -28,6 +29,7 @@ class Socket {
     Socket(std::string name, uint16_t port);
     ~Socket();
     bool set_target(std::string ip, uint16_t port);
+    std::string get_client_IP();
     bool listening(int max_connections); // Server-only
     Socket *accept_connection();         // Server-only
     bool connect_to_target();            // Client-only

@@ -11,9 +11,10 @@
 
 using namespace std;
 
-#define MAX_CONN 10
 #define PORT 9001
 #define PASSWORD "kalinka@SSC0142"
+#define MAX_CONN 10
+#define MAX_CHANNEL_LEN 200
 
 #define nick(tup) get<0>(tup)
 #define alive(tup) get<1>(tup)
@@ -25,6 +26,7 @@ using client_hash = unordered_map<Socket *, hash_value>;
 
 struct msg_info {
     Socket *sender;
+    string channel_name; // Only used when there is a Channel notification to be send in broadcast
     string content;
 };
 
@@ -52,6 +54,7 @@ class Server {
     void send_to_queue(msg_info &pack);
     void remove_from_channel(Socket *client);
     bool change_channel(Socket *client, string new_channel);
+    void channel_notification(string c_name, string notification);
 
   public:
     // Methods
@@ -224,6 +227,7 @@ bool Server::change_channel(Socket *client, string new_channel) {
     // Guard clause
     if (new_channel[0] != '#') {
         // Channel name is not in the correct format
+        client->send_message_from(string("The Channel name should be preceded by a '#'. Ex: /join #test"));
         return false;
     }
 
@@ -233,17 +237,13 @@ bool Server::change_channel(Socket *client, string new_channel) {
     hash_value &myself = this->channels[my_channel].members[client];
     muted(myself) = false;
 
-    cout << "ENTREI NA FUNCAO CHANGE_CHANNEL" << endl;
-
     // Delete the user from the previous channel
     this->remove_from_channel(client);
-
-    cout << "SAI DA FUNCAO CHANGE_CHANNEL" << endl;
 
     // If new channel does not exist
     if (this->channels.find(new_channel) == this->channels.end()) {
 
-        cout << "Nao achou o canal e tenta criar" << endl;
+        cout << "Didn't find the channel " << new_channel << ", so I'm creating it." << endl;
         // Create it and set the creator as the admin
         Channel c;
         c.admin = client;
@@ -257,6 +257,17 @@ bool Server::change_channel(Socket *client, string new_channel) {
 
     mtx.unlock();
     return true;
+}
+
+void Server::channel_notification(string c_name, string notification) {
+    if ((int)notification.size() == 0)
+        return;
+
+    msg_info msg;
+    msg.channel_name = c_name;
+    msg.sender = nullptr;
+    msg.content = notification;
+    this->send_to_queue(msg);
 }
 
 /* ---------------------------- PUBLIC METHODS ------------------------------ */
@@ -298,13 +309,22 @@ void Server::receive(Socket *client) {
     // this->check_password(client);
     allowed(myself) = true;
 
-    client->send_message_from(string("\nWelcome to our server!\n\n"));
+    client->send_message_from(string("Welcome to our server!\n"));
 
     msg_pack.content = nick(myself) + " has entered the chat!";
     msg_pack.sender = client;
     this->send_to_queue(msg_pack);
 
-    while (alive(myself)) {
+    bool life = true;
+
+    while (life) {
+
+        try {
+            life = alive(myself);
+        } catch (const std::bad_alloc &e) {
+            cout << e.what() << endl;
+        }
+
         // Get my current channel
         my_channel = this->which_channel[client];
         hash_value &myself = this->channels[my_channel].members[client];
@@ -338,17 +358,19 @@ void Server::receive(Socket *client) {
             } else if (cmd == "join") {
                 // Get the channel name from the message
                 new_channel = m[2].str();
-                bool changed = this->change_channel(client, new_channel);
-                client->send_message_from(
-                    string("\nYou changed from channel " + my_channel + " to " + new_channel + "\n"));
-
-                if (changed) {
-                    my_channel = new_channel;
-                    hash_value &myself = this->channels[my_channel].members[client];
-
-                    msg_pack.content = nick(myself) + " has entered the chat!";
-                    msg_pack.sender = client;
-                    this->send_to_queue(msg_pack);
+                if ((int)new_channel.size() > MAX_CHANNEL_LEN) {
+                    client->send_message_from(string("The name of a Channel can't be greater than " +
+                                                     to_string(MAX_CHANNEL_LEN) + " characters."));
+                } else {
+                    if (this->change_channel(client, new_channel)) {
+                        // The operation was successful
+                        client->send_message_from(
+                            string("You changed from channel " + my_channel + " to " + new_channel));
+                        channel_notification(my_channel, string(nick(myself) + " has left the channel."));
+                        my_channel = new_channel;
+                        hash_value &myself = this->channels[my_channel].members[client];
+                        channel_notification(new_channel, string(nick(myself) + " has entered the channel!"));
+                    }
                 }
             }
             // The client can only do the following commands if they are an admin
@@ -356,13 +378,11 @@ void Server::receive(Socket *client) {
                 // Get the target to apply the command to
                 target_user = m[2].str();
                 bool found = false;
-                cout << "QUERO IMPLICAR COM O USUARIO " << target_user << endl;
 
                 Socket *target;
                 // Tries to find the user in the channel
                 for (auto &mem_ptr : this->channels[my_channel].members) {
                     if (nick(mem_ptr.second) == target_user) {
-                        cout << "ACHEI O CORNO" << endl;
                         found = true;
                         target = mem_ptr.first;
                         break;
@@ -370,16 +390,24 @@ void Server::receive(Socket *client) {
                 }
                 if (!found) {
                     client->send_message_from(string("The requested user is not on this channel!"));
-                }
-
-                else if (cmd == "kick") {
-                    this->change_channel(target, "#general");
-                } else if (cmd == "mute") {
+                } else {
                     hash_value &target_tup = this->channels[my_channel].members[target];
-                    muted(target_tup) = true;
-                } else if (cmd == "unmute") {
-                    hash_value &target_tup = this->channels[my_channel].members[target];
-                    muted(target_tup) = false;
+                    if (cmd == "kick") {
+                        this->change_channel(target, "#general");
+                        target->send_message_from(string(nick(myself) + " kicked you from the channel."));
+                        this->channel_notification(my_channel,
+                                                   string(nick(target_tup) + " has been kicked from the channel."));
+                    } else if (cmd == "mute") {
+                        muted(target_tup) = true;
+                        this->channel_notification(my_channel, string(nick(target_tup) + " has been muted."));
+                    } else if (cmd == "unmute") {
+                        muted(target_tup) = false;
+                        this->channel_notification(my_channel, string(nick(target_tup) + " has been unmuted."));
+                    } else if (cmd == "whois") {
+                        string target_ip = target->get_client_IP();
+                        client->send_message_from(
+                            string("User" + nick(target_tup) + "has the IP address " + target_ip + "."));
+                    }
                 }
             }
         } else {
@@ -432,6 +460,7 @@ void Server::accept() {
 void Server::broadcast() {
     msg_info next_msg_pack;
     bool success = false;
+    string c_name; // Channel name
 
     cout << "Now broadcasting messages...\n";
 
@@ -447,23 +476,44 @@ void Server::broadcast() {
 
             // Only send it if it's content is not empty
             if ((int)next_msg_pack.content.size() > 0) {
-                // Get channel name
-                string c_name = this->which_channel[next_msg_pack.sender];
-                // Get sender status
-                hash_value &sender = this->channels[c_name].members[next_msg_pack.sender];
-                // If the sender is not muted..._
-                if (!muted(sender)) {
+                if (next_msg_pack.sender == nullptr) {
+                    // This message is to be broadcasted to the channel named in the msg_pack
+                    c_name = next_msg_pack.channel_name;
                     // Send it to everyone on that channel...
                     for (auto it = this->channels[c_name].members.begin(); it != this->channels[c_name].members.end();
                          it++) {
-
                         hash_value &client = this->channels[c_name].members[it->first];
                         // If they are allowed to.
                         if (allowed(client)) {
                             success = this->send_chunk(next_msg_pack.content, it->first);
                             // If we could not send the message to the client, it has quitted from the server
                             if (!success) {
-                                alive(client) = false;
+                                try {
+                                    alive(client) = false;
+                                } catch (const bad_alloc &e) {
+                                    cout << "Bad alloc: " << e.what() << endl;
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    // Get channel name
+                    string c_name = this->which_channel[next_msg_pack.sender];
+                    // Get sender status
+                    hash_value &sender = this->channels[c_name].members[next_msg_pack.sender];
+                    // If the sender is not muted...
+                    if (!muted(sender)) {
+                        // Send it to everyone on that channel...
+                        for (auto it = this->channels[c_name].members.begin();
+                             it != this->channels[c_name].members.end(); it++) {
+                            hash_value &client = this->channels[c_name].members[it->first];
+                            // If they are allowed to.
+                            if (allowed(client)) {
+                                success = this->send_chunk(next_msg_pack.content, it->first);
+                                // If we could not send the message to the client, it has quitted from the server
+                                if (!success) {
+                                    alive(client) = false;
+                                }
                             }
                         }
                     }
@@ -479,7 +529,6 @@ void Server::broadcast() {
 
 int main() {
     Server IRC(PORT);
-
     thread accept_t = IRC.accept_thread();
     thread broadcast_t = IRC.broadcast_thread();
 

@@ -1,5 +1,5 @@
 #include "socket.hpp"
-#include <iostream>
+#include <cstdlib>
 
 // Default constructor. Not used here.
 Socket::Socket() {}
@@ -84,9 +84,42 @@ bool Socket::listening(int max_connections) {
  *       Socket: the target socket, now connected.
  */
 Socket *Socket::accept_connection() {
-    int new_socket_fd = accept(this->target_socket_fd, NULL, NULL);
+    socklen_t size_con = (socklen_t)sizeof(this->con_address);
+    int new_socket_fd = accept(this->target_socket_fd, (this->con_address), &size_con);
     Socket *s = new Socket(new_socket_fd);
     return s;
+}
+
+// Get back the IP of the client
+std::string Socket::get_client_IP() {
+    // struct sockaddr_in addr;
+    // int addr_len;
+
+    // res = getsockname(ConnectFD, (struct sockaddr *)&addr, &addr_len);
+
+    char *ip = nullptr;
+
+    // char *ip = inet_ntoa(this->con_address.sin_addr);
+
+    switch (this->con_address.sa_family) {
+    case AF_INET: {
+        struct sockaddr_in *addr_in = (struct sockaddr_in *)this->con_address;
+        ip = (char *)malloc(INET_ADDRSTRLEN);
+        inet_ntop(AF_INET, &(addr_in->sin_addr), ip, INET_ADDRSTRLEN);
+        break;
+    }
+    case AF_INET6: {
+        struct sockaddr_in6 *addr_in6 = (struct sockaddr_in6 *)this->con_address;
+        ip = (char *)malloc(INET6_ADDRSTRLEN);
+        inet_ntop(AF_INET6, &(addr_in6->sin6_addr), ip, INET6_ADDRSTRLEN);
+        break;
+    }
+    default:
+        break;
+    }
+
+    return std::string(ip);
+    // free(ip);
 }
 
 /*
