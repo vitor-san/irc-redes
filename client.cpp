@@ -3,12 +3,15 @@
 #include <chrono>
 #include <csignal>
 #include <cstdlib>
+#include <fstream>
 #include <iostream>
 #include <mutex>
 #include <netdb.h>
 #include <thread>
 
 using namespace std;
+
+string nickname;
 
 bool running = true;
 
@@ -25,6 +28,9 @@ void send_message(Socket *s) {
     vector<string> chunks;
     bool success = false;
 
+    // First, sends his nickname to the server
+    s->send_message(nickname);
+
     while (running) {
         // Get the message from the client and store it in the buffer
         if (getline(cin, buffer)) {
@@ -35,6 +41,12 @@ void send_message(Socket *s) {
             if (cmd != "") {
                 if (cmd == "quit") {
                     running = false;
+                } else if (cmd == "nickname") {
+                    nickname = m[2].str();
+                    ofstream nick_file;
+                    nick_file.open("nick.txt", ios::out);
+                    nick_file << nickname;
+                    nick_file.close();
                 }
                 success = s->send_message(buffer);
                 while (!success) {
@@ -117,12 +129,32 @@ int main(int argc, const char **argv) {
     regex r(RGX_CMD); // RGX_CMD defined in "utils.hpp"
     smatch m;
     char quit = ' ';
-    bool is_in_table, connected = false;
+    bool is_in_table, connected = false, has_initial_nick = false;
     server_dns DNS = get_dns();
     Socket *my_socket;
 
+    fstream nick_file;
+    nick_file.open("nick.txt", ios::in | ios::out);
+    nick_file >> nickname;
+    has_initial_nick = nickname.size() == 0 ? false : true;
+
     system("clear");
     cout << "Welcome to GG Club.\n\n";
+
+    if (!has_initial_nick) {
+        cout << "First, define your nickname (you can change this later):\n";
+        cin >> nickname;
+
+        while (nickname.size() < NICK_MIN || nickname.size() > NICK_MAX) {
+            cout << "\nYou need to provide a nickname with at least " << NICK_MIN << " and at most " << NICK_MAX
+                 << " characters:\n";
+            cin >> nickname;
+        }
+
+        nick_file << nickname; // Saves the nickname in the file
+        getchar();
+    }
+    nick_file.close();
 
     while (running) {
         cout << "Please, connect to one of our servers using the /connect command.\n"
@@ -137,17 +169,17 @@ int main(int argc, const char **argv) {
             // Get the IP and the port from the DNS table
             is_in_table = connect_to(DNS, server_name, server_ip, server_port);
             if (!is_in_table) {
-                system("clear");
+                // system("clear");
                 cout << "\nCould not find the specified server in our DNS table.\n\n";
                 continue;
             }
             cmd.clear();
         } else if (cmd == "list") {
-            system("clear");
+            // system("clear");
             list_servers(DNS);
             continue;
         } else {
-            system("clear");
+            // system("clear");
             cout << "Please, provide a valid command for starting.\n\n";
             continue;
         }
@@ -163,7 +195,6 @@ int main(int argc, const char **argv) {
             // Create two threads, one for receiving and one for sending messages
             thread send_t(send_message, my_socket);
             thread receive_t(receive_message, my_socket);
-
             // Wait until both threads terminate
             send_t.join();
             receive_t.join();

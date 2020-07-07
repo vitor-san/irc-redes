@@ -15,6 +15,8 @@
 #define NICK_SIZE 50                            // Limit of characters for a nickname
 #define MAX_RET 5                               // Maximum number of retransmissions per client
 #define RGX_CMD "^\\s*/(\\w+) ?(\\#?[\\w\\.]*)" // Regex to find command given by user in a message
+#define NICK_MIN 3                              // Minimum number of characters for a nickname
+#define NICK_MAX 50                             // Maximum number of characters for a nickname
 
 using server_data = std::pair<std::string, uint16_t>;  // IP and a port
 using server_dns = std::map<std::string, server_data>; // Maps a name to a server

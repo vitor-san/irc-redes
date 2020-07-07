@@ -46,11 +46,13 @@ class Server {
     mutex mtx;                               // Control of critical regions. Resembles a semaphore.
 
     // Methods
-    void set_nickname(Socket *client, string &new_nick);
+    bool set_nickname(Socket *client, string &new_nick);
     void set_alive(hash_value &cli, bool is_alive);
-    void check_password(Socket *client);
+    void assert_password(Socket *client);
+    string assert_nickname(Socket *client);
+    bool is_valid_nickname(string &nick, Socket *client);
     string prepare_msg(string &chunk, Socket *client);
-    bool send_chunk(string &chunk, Socket *client);
+    bool send_chunk(string chunk, Socket *client);
     void send_to_queue(msg_info &pack);
     void remove_from_channel(Socket *client);
     bool change_channel(Socket *client, string new_channel);
@@ -78,24 +80,10 @@ class Server {
 
 /* ---------------------------- PRIVATE METHODS ----------------------------- */
 
-/*
- *  Set the nickname of the client to new_nick, checks if the name is already
- *  in use and if its size is between 5 and 50.
- *
- *  Parameters:
- *      client(Socket*): The socket of the client
- *      new_nick(string): The new nickname of the client
- */
-void Server::set_nickname(Socket *client, string &new_nick) {
-
-    msg_info msg_pack;
+bool Server::is_valid_nickname(string &nick, Socket *client) {
     bool in_use = false;
-    string cur_channel = this->which_channel[client];
-    hash_value &myself = this->channels[cur_channel].members[client];
-    string size_error_msg("You need to provide a nickname with at least 5 and at most 50 characters.");
-    string in_use_error_msg("Nickname already in use.");
 
-    // test if the nick is already in use
+    // Test if the nick is already in use
     for (auto it = this->channels[cur_channel].members.begin(); it != this->channels[cur_channel].members.end(); it++) {
         hash_value &cli_tuple = this->channels[cur_channel].members[it->first];
         if (nick(cli_tuple) == new_nick) {
@@ -104,18 +92,42 @@ void Server::set_nickname(Socket *client, string &new_nick) {
         }
     }
 
-    if (new_nick.size() < 5 || new_nick.size() > 50) {
+    // Size error
+    if (nick.size() < NICK_MIN || nick.size() > NICK_MAX) {
         // Sends just to this client
-        this->send_chunk(size_error_msg, client);
-    } else if (in_use) {
-        this->send_chunk(in_use_error_msg, client);
-    } else {
-        // Notice to everyone the change
-        msg_pack.content = "User " + nick(myself) + " changed his nickname to " + new_nick + ".";
-        msg_pack.sender = client;
-        this->send_to_queue(msg_pack);
-        nick(myself) = new_nick;
+        this->send_chunk("You need to provide a nickname with at least 5 and at most 50 characters.", client);
+        return false;
     }
+    // In use error
+    if (in_use) {
+        // Sends just to this client
+        this->send_chunk("Nickname already in use.", client);
+        return false;
+    }
+}
+
+/*
+ *  Set the nickname of the client to new_nick, checks if the name is already
+ *  in use and if its size is between 5 and 50.
+ *
+ *  Parameters:
+ *      client(Socket*): The socket of the client
+ *      new_nick(string): The new nickname of the client
+ */
+bool Server::set_nickname(Socket *client, string &new_nick) {
+
+    msg_info msg_pack;
+    bool is_valid = is_valid_nickname(new_nick, client);
+
+    if (!is_valid)
+        return false;
+
+    // Notice to everyone the change
+    msg_pack.content = "User " + nick(myself) + " changed his nickname to " + new_nick + ".";
+    msg_pack.sender = client;
+    this->send_to_queue(msg_pack);
+    nick(myself) = new_nick;
+    return true;
 }
 
 /*
@@ -132,18 +144,29 @@ void Server::set_alive(hash_value &cli, bool is_alive) {
     this->mtx.unlock();
 }
 
-void Server::check_password(Socket *client) {
+void Server::assert_password(Socket *client) {
     string buffer;
-    string pass_prompt("Enter the server's password:");
-
     // Stays in the loop until the correct password is provided
     while (true) {
-        this->send_chunk(pass_prompt, client);
+        this->send_chunk("Enter the server's password:", client);
         client->receive_message(buffer);
         if (!strcmp(buffer.c_str(), PASSWORD)) {
             return;
         }
     }
+}
+
+string Server::assert_nickname(Socket *client) {
+    string buffer;
+    bool invalid = true;
+    // Stays in the loop until the a valid nickname is provided
+    while (invalid) {
+        client->receive_message(buffer);
+        cout << "TO RECEBENDO ESSE NICK --> " << buffer << endl;
+        invalid = this->set_nickname(client, buffer);
+    }
+    // Return the nickname
+    return buffer;
 }
 
 /*
@@ -166,7 +189,7 @@ string Server::prepare_msg(string &chunk, Socket *client) {
  *  Tries to send the message chunk to the client.
  *  Returns false in case of error.
  */
-bool Server::send_chunk(string &chunk, Socket *client) {
+bool Server::send_chunk(string chunk, Socket *client) {
     bool success = false;
     int status;
     string buffer, cmd;
@@ -227,7 +250,7 @@ bool Server::change_channel(Socket *client, string new_channel) {
     // Guard clause
     if (new_channel[0] != '#') {
         // Channel name is not in the correct format
-        client->send_message(string("The Channel name should be preceded by a '#'. Ex: /join #test"));
+        this->send_chunk("The Channel name should be preceded by a '#'. Ex: /join #test", client);
         return false;
     }
 
@@ -294,39 +317,43 @@ Server::Server(int port) : listener("any", port) {
 void Server::receive(Socket *client) {
 
     string buffer, cmd, new_nick, new_channel, target_user;
-    string pong_msg("pong");
-    string quit_msg("You have quited successfully!");
     regex r(RGX_CMD); // RGX_CMD defined in "utils.hpp"
     smatch m;
     msg_info msg_pack;
     int status;
 
+    cout << "VOU ASSERTAR" << endl;
+    // Assert that this client's nickname is valid
+    string my_nick = this->assert_nickname(client);
+    // Assert that this client knows the password
+    this->assert_password(client);
+
+    // Welcome they in the general channel
     string my_channel = "#general";
+
+    // Register they and three control booleans in the hash table:
+    // - true for alive, true for allowed and false for muted.
+    this->channels[my_channel].members.insert(make_pair(client, make_tuple(my_nick, true, true, false)));
+    this->which_channel[client] = my_channel;
+
     hash_value &myself = this->channels[my_channel].members[client];
 
-    // Check if this client knows the password
-    // this->check_password(client);
-    allowed(myself) = true;
+    // Log
+    cout << "Inserted client " << my_nick << "\n";
 
-    client->send_message(string("Welcome to our server!\n"));
+    this->send_chunk("Welcome to our server!\n", client);
 
-    msg_pack.content = nick(myself) + " has entered the chat!";
+    msg_pack.content = my_nick + " has entered the chat!";
     msg_pack.sender = client;
     this->send_to_queue(msg_pack);
 
-    bool life = true;
-
-    while (life) {
-
-        try {
-            life = alive(myself);
-        } catch (const std::bad_alloc &e) {
-            cout << e.what() << endl;
-        }
+    // Loop until client dies
+    while (alive(myself)) {
 
         // Get my current channel
         my_channel = this->which_channel[client];
         hash_value &myself = this->channels[my_channel].members[client];
+
         // Receive next message
         status = client->receive_message(buffer);
         if (status <= 0) {
@@ -335,39 +362,46 @@ void Server::receive(Socket *client) {
         }
         // Parses the message, searching for commands
         regex_search(buffer, m, r);
-        cmd = m[1].str(); // Gets first command found, if any
+        // Gets first command found, if any
+        cmd = m[1].str();
         // If any command where found (following RGX_CMD rules), then execute it
         if (cmd != "") {
             if (cmd == "quit") {
                 set_alive(myself, false);
-                this->send_chunk(quit_msg, client);
-                // Log
-                cout << "Client " << nick(myself) << " quited" << endl;
+                cout << "Client " << my_nick << " quited" << endl; // Log
             } else if (cmd == "ping") {
                 // Send "pong" to the client
-                set_alive(myself, this->send_chunk(pong_msg, client));
+                set_alive(myself, this->send_chunk("pong", client));
                 // Log
                 if (alive(myself)) {
-                    cout << "Pong sent to client " << nick(myself) << endl;
+                    cout << "Pong sent to client " << my_nick << endl;
                 }
             } else if (cmd == "nickname") {
                 // Get the nickname from the message
                 new_nick = m[2].str();
                 this->set_nickname(client, new_nick);
+                my_nick = new_nick;
             } else if (cmd == "join") {
                 // Get the channel name from the message
                 new_channel = m[2].str();
                 if ((int)new_channel.size() > MAX_CHANNEL_LEN) {
-                    client->send_message(string("The name of a Channel can't be greater than " +
-                                                to_string(MAX_CHANNEL_LEN) + " characters."));
-                } else {
+                    this->send_chunk("The name of a Channel can't be greater than " + to_string(MAX_CHANNEL_LEN) +
+                                         " characters.",
+                                     client);
+                }
+                // Trying to join the current channel
+                else if (!new_channel.compare(my_channel)) {
+                    this->send_chunk("You're already on that channel.", client);
+                }
+                // Succesfully try to join a channel
+                else {
                     if (this->change_channel(client, new_channel)) {
                         // The operation was successful
-                        client->send_message(string("You changed from channel " + my_channel + " to " + new_channel));
-                        channel_notification(my_channel, string(nick(myself) + " has left the channel."));
+                        this->send_chunk("You changed from channel " + my_channel + " to " + new_channel, client);
+                        channel_notification(my_channel, string(my_nick + " has left the channel."));
                         my_channel = new_channel;
                         hash_value &myself = this->channels[my_channel].members[client];
-                        channel_notification(new_channel, string(nick(myself) + " has entered the channel!"));
+                        channel_notification(new_channel, string(my_nick + " has entered the channel!"));
                     }
                 }
             }
@@ -387,24 +421,31 @@ void Server::receive(Socket *client) {
                     }
                 }
                 if (!found) {
-                    client->send_message(string("The requested user is not on this channel!"));
+                    this->send_chunk("The requested user is not on this channel!", client);
                 } else {
                     hash_value &target_tup = this->channels[my_channel].members[target];
-                    if (cmd == "kick") {
-                        this->change_channel(target, "#general");
-                        target->send_message(string(nick(myself) + " kicked you from the channel."));
-                        this->channel_notification(my_channel,
-                                                   string(nick(target_tup) + " has been kicked from the channel."));
-                    } else if (cmd == "mute") {
-                        muted(target_tup) = true;
-                        this->channel_notification(my_channel, string(nick(target_tup) + " has been muted."));
-                    } else if (cmd == "unmute") {
-                        muted(target_tup) = false;
-                        this->channel_notification(my_channel, string(nick(target_tup) + " has been unmuted."));
-                    } else if (cmd == "whois") {
-                        string target_ip = target->get_IP_address();
-                        client->send_message(
-                            string("User " + nick(target_tup) + " has the IP address " + target_ip + "."));
+                    // Check if the target of the command is the user itself
+                    if (client == target) {
+                        this->send_chunk("You can't target yourself using an admin command", client);
+                    }
+
+                    else {
+                        if (cmd == "kick") {
+                            this->change_channel(target, "#general");
+                            this->send_chunk(my_nick + " kicked you from the channel.", client);
+                            this->channel_notification(my_channel,
+                                                       string(nick(target_tup) + " has been kicked from the channel."));
+                        } else if (cmd == "mute") {
+                            muted(target_tup) = true;
+                            this->channel_notification(my_channel, string(nick(target_tup) + " has been muted."));
+                        } else if (cmd == "unmute") {
+                            muted(target_tup) = false;
+                            this->channel_notification(my_channel, string(nick(target_tup) + " has been unmuted."));
+                        } else if (cmd == "whois") {
+                            string target_ip = target->get_IP_address();
+                            this->send_chunk("User " + nick(target_tup) + " has the IP address " + target_ip + ".",
+                                             client);
+                        }
                     }
                 }
             }
@@ -419,9 +460,9 @@ void Server::receive(Socket *client) {
         }
     }
 
-    cout << "Connection closed with client " << nick(myself) << endl;
+    cout << "Connection closed with client " << my_nick << endl;
 
-    msg_pack.content = "User " + nick(myself) + " has disconnected from the server...";
+    msg_pack.content = "User " + my_nick + " has disconnected from the server...";
     msg_pack.sender = client;
     this->send_to_queue(msg_pack);
 
@@ -433,7 +474,6 @@ void Server::receive(Socket *client) {
 */
 void Server::accept() {
     Socket *client;
-    string nickname = "unknown";
     thread new_thread;
 
     cout << "Now accepting new connections...\n";
@@ -441,11 +481,6 @@ void Server::accept() {
     while (true) {
         // Wait until a new connection arrives. Then, create a new Socket for conversating with this client
         client = this->listener.accept_connection();
-        // Register they and two control booleans in the hash table
-        // true for alive and false for allowed (client has not given the password)
-        this->which_channel[client] = "#general";
-        this->channels["#general"].members.insert(make_pair(client, make_tuple(nickname, true, false, false)));
-        cout << "Inserted client " << nickname << "\n";
         // Open a thread to handle messages sent by this client
         new_thread = this->receive_thread(client);
         new_thread.detach();
