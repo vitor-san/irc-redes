@@ -27,6 +27,7 @@ class Socket {
     Socket(int fd, sockaddr_in address);
     Socket(std::string name, uint16_t port);
     ~Socket();
+    int get_my_fd() const;
     bool set_address(std::string ip, uint16_t port);
     std::string get_IP_address();
     bool listening(int max_connections); // Server-only

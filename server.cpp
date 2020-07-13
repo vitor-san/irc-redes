@@ -64,10 +64,10 @@ class Server {
   public:
     // Methods
     Server(int port);
+
     void broadcast();
     void accept();
     void receive(Socket *client);
-    void kill();
 
     thread broadcast_thread() {
         return thread([=] { broadcast(); });
@@ -79,10 +79,6 @@ class Server {
 
     thread receive_thread(Socket *client) {
         return thread([=] { receive(client); });
-    }
-
-    thread kill_thread() {
-        return thread([=] { kill(); });
     }
 };
 
@@ -271,12 +267,12 @@ bool Server::change_channel(Socket *client, string new_channel) {
     mtx.lock();
 
     string my_channel = this->which_channel[client];
-    cout << "CANAL ATUAL: " << my_channel << endl;
     hash_value &myself = this->channels[my_channel].members[client];
     muted(myself) = false;
 
     // Delete the user from the previous channel
     this->remove_from_channel(client);
+    cout << (*client).get_my_fd() << endl;
 
     // If new channel does not exist
     if (this->channels.find(new_channel) == this->channels.end()) {
@@ -382,6 +378,8 @@ void Server::receive(Socket *client) {
         if (cmd != "") {
             if (cmd == "quit") {
                 set_alive(myself, false);
+                // Erase their nickname from the server
+                this->cur_nicknames.erase(my_nick);
                 cout << "Client " << my_nick << " quited" << endl; // Log
             } else if (cmd == "ping") {
                 // Send "pong" to the client
@@ -535,11 +533,7 @@ void Server::broadcast() {
                             success = this->send_chunk(next_msg_pack.content, it->first);
                             // If we could not send the message to the client, it has quitted from the server
                             if (!success) {
-                                try {
-                                    alive(client) = false;
-                                } catch (const bad_alloc &e) {
-                                    cout << "Bad alloc: " << e.what() << endl;
-                                }
+                                alive(client) = false;
                             }
                         }
                     }
@@ -572,25 +566,15 @@ void Server::broadcast() {
     }
 }
 
-void Server::kill() {
-    string buffer;
-    cin >> buffer;
-    if (buffer == "kill") {
-        exit(EXIT_SUCCESS);
-    }
-}
-
 /* ---------------------------- DRIVER FUNCTION ----------------------------- */
 
 int main() {
     Server IRC(PORT);
     thread accept_t = IRC.accept_thread();
     thread broadcast_t = IRC.broadcast_thread();
-    thread kill_t = IRC.kill_thread();
 
     accept_t.join();
     broadcast_t.join();
-    kill_t.join();
 
     return 0;
 }

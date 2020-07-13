@@ -1,4 +1,4 @@
-FLAGS = -std=c++11 -pthread -lpthread -g -O2
+FLAGS = -std=c++11 -pthread -lpthread -g -O1
 
 all: server client
 

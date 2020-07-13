@@ -16,6 +16,8 @@ Socket::Socket(int fd, struct sockaddr_in address) {
     this->address = address;
 }
 
+int Socket::get_my_fd() const { return this->my_fd; }
+
 /*
  *   Sets the ip and the port of the target socket.
  *
@@ -158,4 +160,7 @@ int Socket::receive_message(std::string &buffer) {
 }
 
 // Destructor method
-Socket::~Socket() { close(this->my_fd); }
+Socket::~Socket() {
+    std::cout << "Entered Socket destructor" << std::endl;
+    close(this->my_fd);
+}

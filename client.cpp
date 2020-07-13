@@ -42,23 +42,29 @@ void send_message(Socket *s) {
             if (cmd != "") {
                 if (cmd == "quit") {
                     running = false;
+                    success = s->send_message(buffer);
+                    while (!success) {
+                        success = s->send_message(buffer);
+                    }
+                    exit(EXIT_SUCCESS);
                 } else if (cmd == "nickname") {
                     nickname = m[2].str();
                     ofstream nick_file;
                     try {
                         nick_file.open("nick.txt", ios::out);
-                    } catch (std::exception e) {
+                        nick_file << nickname;
+                        nick_file.close();
+                    } catch (exception e) {
                         cout << e.what() << endl;
+                        running = false;
                     }
-
-                    nick_file << nickname;
-                    nick_file.close();
                 }
 
                 success = s->send_message(buffer);
                 while (!success) {
                     success = s->send_message(buffer);
                 }
+
             } else {
                 // Regular message
                 chunks = break_msg(buffer);
