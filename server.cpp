@@ -177,6 +177,8 @@ string Server::assert_nickname(Socket *client) {
         nick = m[2].str();
         valid = this->is_valid_nickname(nick, client);
     }
+    // Register nickname
+    this->cur_nicknames.insert(nick);
     // Return the nickname
     return nick;
 }
@@ -193,9 +195,7 @@ string Server::assert_nickname(Socket *client) {
 
 string Server::prepare_msg(string &chunk, Socket *client) {
     string cur_channel = this->which_channel[client];
-    cout << "MSG BEFORE -> " << chunk << endl;
     string msg = nick(this->channels[cur_channel].members[client]) + ": " + chunk;
-    cout << "MSG AFTER -> " << msg << endl;
     return msg;
 }
 
@@ -522,7 +522,6 @@ void Server::broadcast() {
 
             // Only send it if it's content is not empty
             if ((int)next_msg_pack.content.size() > 0) {
-                cout << "BROADCAST TA MANDANDO: " << next_msg_pack.content << endl;
                 if (next_msg_pack.sender == nullptr) {
                     // This message is to be broadcasted to the channel named in the msg_pack
                     c_name = next_msg_pack.channel_name;

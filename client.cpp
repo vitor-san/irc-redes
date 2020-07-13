@@ -41,7 +41,6 @@ void send_message(Socket *s) {
             // If any command where found (following RGX_CMD rules), then execute it
             if (cmd != "") {
                 if (cmd == "quit") {
-                    exit(EXIT_SUCCESS);
                     running = false;
                 } else if (cmd == "nickname") {
                     nickname = m[2].str();
