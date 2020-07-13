@@ -53,14 +53,12 @@ void send_message(Socket *s) {
 
                     nick_file << nickname;
                     nick_file.close();
-
-                    success = s->send_message(buffer);
-                    while (!success) {
-                        success = s->send_message(buffer);
-                        cout << "Mandei: " << buffer << endl;
-                    }
                 }
 
+                success = s->send_message(buffer);
+                while (!success) {
+                    success = s->send_message(buffer);
+                }
             } else {
                 // Regular message
                 chunks = break_msg(buffer);

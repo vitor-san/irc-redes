@@ -271,6 +271,7 @@ bool Server::change_channel(Socket *client, string new_channel) {
     mtx.lock();
 
     string my_channel = this->which_channel[client];
+    cout << "CANAL ATUAL: " << my_channel << endl;
     hash_value &myself = this->channels[my_channel].members[client];
     muted(myself) = false;
 
