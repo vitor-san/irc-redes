@@ -235,24 +235,34 @@ void Server::remove_from_channel(Socket *client) {
 
     string my_channel = this->which_channel[client];
 
+    cout << "ESTOU REMOVENDO DO CANAL [" << my_channel << "] UM CLIENTE" << endl;
+
     this->channels[my_channel].members.erase(client);
 
+    cout << "REMOVI" << endl;
+
     int members_on_channel = this->channels[my_channel].members.size();
+    cout << "ESSE CANAL, DO QUAL EU ACABEI DE REMOVER O CLIENT, TEM AGR TAMANHO: " << members_on_channel << endl;
     // If there is nobody on the channel we need to delete it
     if (members_on_channel == 0 && my_channel != "#general") {
+        cout << "APAGUEI ESSE CANAL PQ O CANAL TEM 0 MEMBROS AGR" << endl;
         this->channels.erase(my_channel);
+        if (this->channels.find(my_channel) == this->channels.end()) {
+            cout << "REALMENTE APAGUEI O CANAL" << endl;
+        }
     }
 
-    // If client is the admin, choose another member on the channel to be the next admin
+    // If client is the admin, kick everyone else from the channel
     else if (this->channels[my_channel].admin == client) {
-        auto next_admin_ptr = this->channels[my_channel].members.begin();
-        this->channels[my_channel].admin = next_admin_ptr->first;
-        // Let they know that they became the admin
-        hash_value &new_admin = this->channels[my_channel].members[next_admin_ptr->first];
-        msg_info msg_pack;
-        msg_pack.content = nick(new_admin) + " became the new admin!";
-        msg_pack.sender = next_admin_ptr->first;
-        this->send_to_queue(msg_pack);
+        cout << "O CLIENT REMOVIDO E O ADMIN CARALHO, FUDEUUU" << endl;
+        for (auto &member_ptr : this->channels[my_channel].members) {
+            this->send_chunk(string("The channel " + my_channel + "has been erased. You are now in #general"),
+                             member_ptr.first);
+            cout << "VOU TROCAR O CANAL DE UM CORNO PARA #general" << endl;
+            change_channel(member_ptr.first, "#general");
+        }
+        cout << "AGORA VOU APAGAR O CANAAAAAL PQ O ADMIN SAIUUUUU" << endl;
+        this->channels.erase(my_channel);
     }
 }
 
@@ -267,13 +277,14 @@ bool Server::change_channel(Socket *client, string new_channel) {
     mtx.lock();
 
     string my_channel = this->which_channel[client];
-    hash_value &myself = this->channels[my_channel].members[client];
+    hash_value myself = this->channels[my_channel].members[client];
     muted(myself) = false;
 
     // Delete the user from the previous channel
     this->remove_from_channel(client);
-    cout << (*client).get_my_fd() << endl;
 
+    cout << "A tupla que esta na funcao 'change channel', depois de chamar a 'remove_from_channel', e: " + nick(myself)
+         << alive(myself) << allowed(myself) << muted(myself) << endl;
     // If new channel does not exist
     if (this->channels.find(new_channel) == this->channels.end()) {
         // Server log
@@ -286,7 +297,9 @@ bool Server::change_channel(Socket *client, string new_channel) {
     } else {
         this->channels[new_channel].members.insert(make_pair(client, myself));
     }
+    cout << "MEU CANAL ANTIGO É " << this->which_channel[client] << endl;
     this->which_channel[client] = new_channel;
+    cout << "MEU NOVO CANAL É " << this->which_channel[client] << endl;
 
     mtx.unlock();
     return true;
@@ -413,6 +426,8 @@ void Server::receive(Socket *client) {
                         channel_notification(my_channel, string(my_nick + " has left the channel."));
                         my_channel = new_channel;
                         hash_value &myself = this->channels[my_channel].members[client];
+                        cout << "A tupla que esta no receive, final do join, e: " + nick(myself) << alive(myself)
+                             << allowed(myself) << muted(myself) << endl;
                         channel_notification(new_channel, string(my_nick + " has entered the channel!"));
                     }
                 }
