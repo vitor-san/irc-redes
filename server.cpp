@@ -1,9 +1,11 @@
 #include "socket.hpp"
 #include "utils.hpp"
 #include <chrono>
+#include <cstdlib>
 #include <iostream>
 #include <mutex>
 #include <queue>
+#include <set>
 #include <thread>
 #include <tuple>
 #include <unordered_map>
@@ -40,13 +42,14 @@ class Server {
   private:
     // Atributes
     Socket listener;
+    set<string> cur_nicknames;
     unordered_map<Socket *, string> which_channel;
     unordered_map<string, Channel> channels; // Channel name must have a # in the beginning
     queue<msg_info> msg_queue;               // Queue of messages to send in broadcast
     mutex mtx;                               // Control of critical regions. Resembles a semaphore.
 
     // Methods
-    bool set_nickname(Socket *client, string &new_nick);
+    bool set_oldcli_nickname(Socket *client, hash_value &client_tup, string &new_nick);
     void set_alive(hash_value &cli, bool is_alive);
     void assert_password(Socket *client);
     string assert_nickname(Socket *client);
@@ -64,6 +67,7 @@ class Server {
     void broadcast();
     void accept();
     void receive(Socket *client);
+    void kill();
 
     thread broadcast_thread() {
         return thread([=] { broadcast(); });
@@ -76,22 +80,15 @@ class Server {
     thread receive_thread(Socket *client) {
         return thread([=] { receive(client); });
     }
+
+    thread kill_thread() {
+        return thread([=] { kill(); });
+    }
 };
 
 /* ---------------------------- PRIVATE METHODS ----------------------------- */
 
 bool Server::is_valid_nickname(string &nick, Socket *client) {
-    bool in_use = false;
-
-    // Test if the nick is already in use
-    for (auto it = this->channels[cur_channel].members.begin(); it != this->channels[cur_channel].members.end(); it++) {
-        hash_value &cli_tuple = this->channels[cur_channel].members[it->first];
-        if (nick(cli_tuple) == new_nick) {
-            in_use = true;
-            break;
-        }
-    }
-
     // Size error
     if (nick.size() < NICK_MIN || nick.size() > NICK_MAX) {
         // Sends just to this client
@@ -99,11 +96,12 @@ bool Server::is_valid_nickname(string &nick, Socket *client) {
         return false;
     }
     // In use error
-    if (in_use) {
+    if (this->cur_nicknames.find(nick) != this->cur_nicknames.end()) {
         // Sends just to this client
         this->send_chunk("Nickname already in use.", client);
         return false;
     }
+    return true;
 }
 
 /*
@@ -114,19 +112,22 @@ bool Server::is_valid_nickname(string &nick, Socket *client) {
  *      client(Socket*): The socket of the client
  *      new_nick(string): The new nickname of the client
  */
-bool Server::set_nickname(Socket *client, string &new_nick) {
-
-    msg_info msg_pack;
-    bool is_valid = is_valid_nickname(new_nick, client);
-
-    if (!is_valid)
+bool Server::set_oldcli_nickname(Socket *client, hash_value &client_tup, string &new_nick) {
+    // Guard clause
+    if (!is_valid_nickname(new_nick, client))
         return false;
 
     // Notice to everyone the change
-    msg_pack.content = "User " + nick(myself) + " changed his nickname to " + new_nick + ".";
+    msg_info msg_pack;
+    msg_pack.content = "User " + nick(client_tup) + " changed his nickname to " + new_nick + ".";
     msg_pack.sender = client;
     this->send_to_queue(msg_pack);
-    nick(myself) = new_nick;
+
+    // Change the nick
+    this->cur_nicknames.erase(nick(client_tup));
+    this->cur_nicknames.insert(new_nick);
+    nick(client_tup) = new_nick;
+
     return true;
 }
 
@@ -157,16 +158,27 @@ void Server::assert_password(Socket *client) {
 }
 
 string Server::assert_nickname(Socket *client) {
-    string buffer;
-    bool invalid = true;
+    string buffer, cmd, nick;
+    regex r(RGX_CMD); // RGX_CMD defined in "utils.hpp"
+    smatch m;
+    bool valid = false;
+
     // Stays in the loop until the a valid nickname is provided
-    while (invalid) {
+    while (!valid) {
         client->receive_message(buffer);
-        cout << "TO RECEBENDO ESSE NICK --> " << buffer << endl;
-        invalid = this->set_nickname(client, buffer);
+        // Parses the message, searching for commands
+        regex_search(buffer, m, r);
+        // Gets first command found, if any
+        cmd = m[1].str();
+        if (cmd != "nickname") {
+            this->send_chunk("Please provide your nickname only after a /nickname command.", client);
+            continue;
+        }
+        nick = m[2].str();
+        valid = this->is_valid_nickname(nick, client);
     }
     // Return the nickname
-    return buffer;
+    return nick;
 }
 
 /*
@@ -181,7 +193,9 @@ string Server::assert_nickname(Socket *client) {
 
 string Server::prepare_msg(string &chunk, Socket *client) {
     string cur_channel = this->which_channel[client];
+    cout << "MSG BEFORE -> " << chunk << endl;
     string msg = nick(this->channels[cur_channel].members[client]) + ": " + chunk;
+    cout << "MSG AFTER -> " << msg << endl;
     return msg;
 }
 
@@ -322,11 +336,10 @@ void Server::receive(Socket *client) {
     msg_info msg_pack;
     int status;
 
-    cout << "VOU ASSERTAR" << endl;
     // Assert that this client's nickname is valid
     string my_nick = this->assert_nickname(client);
     // Assert that this client knows the password
-    this->assert_password(client);
+    // this->assert_password(client);
 
     // Welcome they in the general channel
     string my_channel = "#general";
@@ -379,7 +392,7 @@ void Server::receive(Socket *client) {
             } else if (cmd == "nickname") {
                 // Get the nickname from the message
                 new_nick = m[2].str();
-                this->set_nickname(client, new_nick);
+                this->set_oldcli_nickname(client, myself, new_nick);
                 my_nick = new_nick;
             } else if (cmd == "join") {
                 // Get the channel name from the message
@@ -509,6 +522,7 @@ void Server::broadcast() {
 
             // Only send it if it's content is not empty
             if ((int)next_msg_pack.content.size() > 0) {
+                cout << "BROADCAST TA MANDANDO: " << next_msg_pack.content << endl;
                 if (next_msg_pack.sender == nullptr) {
                     // This message is to be broadcasted to the channel named in the msg_pack
                     c_name = next_msg_pack.channel_name;
@@ -558,15 +572,25 @@ void Server::broadcast() {
     }
 }
 
+void Server::kill() {
+    string buffer;
+    cin >> buffer;
+    if (buffer == "kill") {
+        exit(EXIT_SUCCESS);
+    }
+}
+
 /* ---------------------------- DRIVER FUNCTION ----------------------------- */
 
 int main() {
     Server IRC(PORT);
     thread accept_t = IRC.accept_thread();
     thread broadcast_t = IRC.broadcast_thread();
+    thread kill_t = IRC.kill_thread();
 
     accept_t.join();
     broadcast_t.join();
+    kill_t.join();
 
     return 0;
 }

@@ -29,7 +29,8 @@ void send_message(Socket *s) {
     bool success = false;
 
     // First, sends his nickname to the server
-    s->send_message(nickname);
+    string nick_cmd = "/nickname " + nickname;
+    s->send_message(nick_cmd);
 
     while (running) {
         // Get the message from the client and store it in the buffer
@@ -40,18 +41,27 @@ void send_message(Socket *s) {
             // If any command where found (following RGX_CMD rules), then execute it
             if (cmd != "") {
                 if (cmd == "quit") {
+                    exit(EXIT_SUCCESS);
                     running = false;
                 } else if (cmd == "nickname") {
                     nickname = m[2].str();
                     ofstream nick_file;
-                    nick_file.open("nick.txt", ios::out);
+                    try {
+                        nick_file.open("nick.txt", ios::out);
+                    } catch (std::exception e) {
+                        cout << e.what() << endl;
+                    }
+
                     nick_file << nickname;
                     nick_file.close();
-                }
-                success = s->send_message(buffer);
-                while (!success) {
+
                     success = s->send_message(buffer);
+                    while (!success) {
+                        success = s->send_message(buffer);
+                        cout << "Mandei: " << buffer << endl;
+                    }
                 }
+
             } else {
                 // Regular message
                 chunks = break_msg(buffer);
