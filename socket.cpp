@@ -14,6 +14,8 @@ Socket::Socket() {}
 Socket::Socket(int fd, struct sockaddr_in address) {
     this->my_fd = fd;
     this->address = address;
+    int optval = 1;
+    setsockopt(this->my_fd, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval));
 }
 
 int Socket::get_my_fd() const { return this->my_fd; }
@@ -53,6 +55,8 @@ Socket::Socket(std::string ip, uint16_t port) {
     if (!this->set_address(ip, port)) {
         throw("Could not create socket (invalid IP).");
     }
+    int optval = 1;
+    setsockopt(this->my_fd, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval));
 }
 
 /*

@@ -49,7 +49,7 @@ class Server {
     mutex mtx;                               // Control of critical regions. Resembles a semaphore.
 
     // Methods
-    bool set_oldcli_nickname(Socket *client, hash_value &client_tup, string &new_nick);
+    bool set_nickname(Socket *client, hash_value &client_tup, string &new_nick);
     void set_alive(hash_value &cli, bool is_alive);
     void assert_password(Socket *client);
     string assert_nickname(Socket *client);
@@ -106,9 +106,10 @@ bool Server::is_valid_nickname(string &nick, Socket *client) {
  *
  *  Parameters:
  *      client(Socket*): The socket of the client
+ *      client_tup(hash_value): Tuple of the client
  *      new_nick(string): The new nickname of the client
  */
-bool Server::set_oldcli_nickname(Socket *client, hash_value &client_tup, string &new_nick) {
+bool Server::set_nickname(Socket *client, hash_value &client_tup, string &new_nick) {
     // Guard clause
     if (!is_valid_nickname(new_nick, client))
         return false;
@@ -235,28 +236,20 @@ void Server::remove_from_channel(Socket *client) {
 
     string my_channel = this->which_channel[client];
 
-    cout << "ESTOU REMOVENDO DO CANAL [" << my_channel << "] UM CLIENTE" << endl;
-
     this->channels[my_channel].members.erase(client);
-
-    cout << "REMOVI" << endl;
 
     int members_on_channel = this->channels[my_channel].members.size();
     cout << "ESSE CANAL, DO QUAL EU ACABEI DE REMOVER O CLIENT, TEM AGR TAMANHO: " << members_on_channel << endl;
     // If there is nobody on the channel we need to delete it
     if (members_on_channel == 0 && my_channel != "#general") {
-        cout << "APAGUEI ESSE CANAL PQ O CANAL TEM 0 MEMBROS AGR" << endl;
         this->channels.erase(my_channel);
-        if (this->channels.find(my_channel) == this->channels.end()) {
-            cout << "REALMENTE APAGUEI O CANAL" << endl;
-        }
     }
 
     // If client is the admin, kick everyone else from the channel
     else if (this->channels[my_channel].admin == client) {
         cout << "O CLIENT REMOVIDO E O ADMIN CARALHO, FUDEUUU" << endl;
         for (auto &member_ptr : this->channels[my_channel].members) {
-            this->send_chunk(string("The channel " + my_channel + "has been erased. You are now in #general"),
+            this->send_chunk(string("The channel " + my_channel + " has been erased. You are now in #general"),
                              member_ptr.first);
             cout << "VOU TROCAR O CANAL DE UM CORNO PARA #general" << endl;
             change_channel(member_ptr.first, "#general");
@@ -283,8 +276,6 @@ bool Server::change_channel(Socket *client, string new_channel) {
     // Delete the user from the previous channel
     this->remove_from_channel(client);
 
-    cout << "A tupla que esta na funcao 'change channel', depois de chamar a 'remove_from_channel', e: " + nick(myself)
-         << alive(myself) << allowed(myself) << muted(myself) << endl;
     // If new channel does not exist
     if (this->channels.find(new_channel) == this->channels.end()) {
         // Server log
@@ -297,9 +288,7 @@ bool Server::change_channel(Socket *client, string new_channel) {
     } else {
         this->channels[new_channel].members.insert(make_pair(client, myself));
     }
-    cout << "MEU CANAL ANTIGO É " << this->which_channel[client] << endl;
     this->which_channel[client] = new_channel;
-    cout << "MEU NOVO CANAL É " << this->which_channel[client] << endl;
 
     mtx.unlock();
     return true;
@@ -359,7 +348,7 @@ void Server::receive(Socket *client) {
     this->channels[my_channel].members.insert(make_pair(client, make_tuple(my_nick, true, true, false)));
     this->which_channel[client] = my_channel;
 
-    hash_value &myself = this->channels[my_channel].members[client];
+    hash_value *myself = &(this->channels[my_channel].members[client]);
 
     // Log
     cout << "Inserted client " << my_nick << "\n";
@@ -371,12 +360,7 @@ void Server::receive(Socket *client) {
     this->send_to_queue(msg_pack);
 
     // Loop until client dies
-    while (alive(myself)) {
-
-        // Get my current channel
-        my_channel = this->which_channel[client];
-        hash_value &myself = this->channels[my_channel].members[client];
-
+    while (alive(*myself)) {
         // Receive next message
         status = client->receive_message(buffer);
         if (status <= 0) {
@@ -390,27 +374,28 @@ void Server::receive(Socket *client) {
         // If any command where found (following RGX_CMD rules), then execute it
         if (cmd != "") {
             if (cmd == "quit") {
-                set_alive(myself, false);
+                set_alive(*myself, false);
                 // Erase their nickname from the server
                 this->cur_nicknames.erase(my_nick);
                 cout << "Client " << my_nick << " quited" << endl; // Log
             } else if (cmd == "ping") {
                 // Send "pong" to the client
-                set_alive(myself, this->send_chunk("pong", client));
+                set_alive(*myself, this->send_chunk("pong", client));
                 // Log
-                if (alive(myself)) {
+                if (alive(*myself)) {
                     cout << "Pong sent to client " << my_nick << endl;
                 }
             } else if (cmd == "nickname") {
                 // Get the nickname from the message
                 new_nick = m[2].str();
-                this->set_oldcli_nickname(client, myself, new_nick);
+                this->set_nickname(client, *myself, new_nick);
                 my_nick = new_nick;
             } else if (cmd == "join") {
                 // Get the channel name from the message
                 new_channel = m[2].str();
-                if ((int)new_channel.size() > MAX_CHANNEL_LEN) {
-                    this->send_chunk("The name of a Channel can't be greater than " + to_string(MAX_CHANNEL_LEN) +
+                int new_c_len = (int)new_channel.size();
+                if (new_c_len < 1 || new_c_len > MAX_CHANNEL_LEN) {
+                    this->send_chunk("The name of a Channel should have between 1 to " + to_string(MAX_CHANNEL_LEN) +
                                          " characters.",
                                      client);
                 }
@@ -424,10 +409,6 @@ void Server::receive(Socket *client) {
                         // The operation was successful
                         this->send_chunk("You changed from channel " + my_channel + " to " + new_channel, client);
                         channel_notification(my_channel, string(my_nick + " has left the channel."));
-                        my_channel = new_channel;
-                        hash_value &myself = this->channels[my_channel].members[client];
-                        cout << "A tupla que esta no receive, final do join, e: " + nick(myself) << alive(myself)
-                             << allowed(myself) << muted(myself) << endl;
                         channel_notification(new_channel, string(my_nick + " has entered the channel!"));
                     }
                 }
@@ -485,6 +466,9 @@ void Server::receive(Socket *client) {
             // Erase buffer to avoid headaches
             buffer.clear();
         }
+        // Get my current channel and tuple
+        my_channel = this->which_channel[client];
+        myself = &(this->channels[my_channel].members[client]);
     }
 
     cout << "Connection closed with client " << my_nick << endl;
