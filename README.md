@@ -31,6 +31,6 @@ Caso decidir fazer port-forwarding, lembre-se de registrar seu IP e porta no arq
 
 > Para mandar mensagens no servidor, apenas digite normalmente no terminal e aperte **ENTER**.
 
-## Aviso
+## Interface gráfica
 
-Utilizar redirecionamento do _stdin_ para um arquivo de texto pode causar comportamentos indesejáveis do programa. **NÃO** faça isso para testá-lo!
+Para utilizar a interface gráfica, os programas python3 (e a biblioteca "tkinter") e o xterm deve ser instalados (explicar isso melhor depois)
