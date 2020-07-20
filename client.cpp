@@ -140,14 +140,18 @@ int main(int argc, const char **argv) {
     server_dns DNS = get_dns();
     Socket *my_socket;
 
-    fstream nick_file;
-    nick_file.open("nick.txt", ios::in | ios::out);
-    nick_file >> nickname;
+    ifstream nick_file_in;
+    ofstream nick_file_out;
+    nick_file_in.open("nick.txt", ios::in);
+
+    nick_file_in >> nickname;
     has_initial_nick = nickname.size() == 0 ? false : true;
+    nick_file_in.close();
 
     cout << "Welcome to GG Club.\n\n";
 
     if (!has_initial_nick) {
+        nick_file_out.open("nick.txt", ios::out);
         cout << "First, define your nickname (you can change this later):\n";
         cin >> nickname;
 
@@ -157,10 +161,10 @@ int main(int argc, const char **argv) {
             cin >> nickname;
         }
 
-        nick_file << nickname; // Saves the nickname in the file
+        nick_file_out << nickname; // Saves the nickname in the file
+        nick_file_out.close();
         getchar();
     }
-    nick_file.close();
 
     while (running) {
         cout << "\nConnect to one of our servers using the /connect command.\n"

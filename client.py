@@ -63,8 +63,8 @@ def receive():
             line = cli.getline()
             messages.config(state='normal')
             messages.insert('insert', "{}".format(line.replace('\r', '')))
-            messages.see(tk.END)
             messages.config(state='disabled')
+            messages.see(tk.END)
         except:
             print("Connection closed with client program (EOF).")
             break

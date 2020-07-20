@@ -41,3 +41,8 @@ Caso decidir fazer port-forwarding, lembre-se de registrar seu IP e porta no arq
 ## Interface gráfica
 
 Para utilizar a interface gráfica, o programa python3 (versão mínima `3.7`) e a sua biblioteca `tkinter` devem estar ser instalados (e atualizados). Caso alguma outra biblioteca falte no seu dispositivo (o que é muito improvável, já que são bibliotecas padrões do Python), por favor as instale.
+Para encerrar o programa, você precisa primeiro dar o comando `/quit` para o servidor e, só depois, fechar a interface no "X". Se tentar fechar no X primeiro, você terá que matar forçadamente o terminal que está rodando a interface, já que a thread de receber mensagens da interface não irá terminar naturalmente.
+
+_OBS: Não conseguimos fazer com que o seu input "cru" ficasse de fora da conversa na interface, então se você mandar a mensagem "oi" receberá na parte dos outputs:_
+`oi`
+`seunome: oi`
