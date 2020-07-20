@@ -368,7 +368,7 @@ void Server::receive(Socket *client) {
     // Log
     cout << "Inserted client " << my_nick << "\n";
 
-    this->send_chunk("Welcome to our server!\n", client);
+    this->send_chunk("\nWelcome to our server!\n", client);
 
     msg_pack.content = my_nick + " has entered the chat!";
     msg_pack.sender = client;
@@ -393,6 +393,7 @@ void Server::receive(Socket *client) {
                 // Erase their nickname from the server
                 this->users.erase(my_nick);
                 set_alive(*myself, false);
+                this->send_chunk("You have quited from the server...", client);
                 cout << "Client " << my_nick << " quited" << endl; // Log
             } else if (cmd == "ping") {
                 // Send "pong" to the client

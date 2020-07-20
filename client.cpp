@@ -42,11 +42,6 @@ void send_message(Socket *s) {
             if (cmd != "") {
                 if (cmd == "quit") {
                     running = false;
-                    success = s->send_message(buffer);
-                    while (!success) {
-                        success = s->send_message(buffer);
-                    }
-                    exit(EXIT_SUCCESS);
                 } else if (cmd == "nickname") {
                     nickname = m[2].str();
                     ofstream nick_file;
@@ -116,7 +111,6 @@ void list_servers(server_dns &DNS) {
     for (auto it = DNS.begin(); it != DNS.end(); it++) {
         cout << it->first << endl;
     }
-    cout << endl;
 }
 
 /*
@@ -169,7 +163,7 @@ int main(int argc, const char **argv) {
     nick_file.close();
 
     while (running) {
-        cout << "Please, connect to one of our servers using the /connect command.\n"
+        cout << "\nConnect to one of our servers using the /connect command.\n"
              << "You can run /list for a list of available servers.\n\n";
         getline(cin, cmd);
         // Parses the input, searching for commands
@@ -181,15 +175,14 @@ int main(int argc, const char **argv) {
             // Get the IP and the port from the DNS table
             is_in_table = connect_to(DNS, server_name, server_ip, server_port);
             if (!is_in_table) {
-                cout << "\nCould not find the specified server in our DNS table.\n\n";
+                cout << "Could not find the specified server in our DNS table.\n";
                 continue;
             }
-            cmd.clear();
         } else if (cmd == "list") {
             list_servers(DNS);
             continue;
         } else {
-            cout << "Please, provide a valid command for starting.\n\n";
+            cout << "Please, provide a valid command for starting.\n";
             continue;
         }
         // Create a socket
@@ -218,6 +211,10 @@ int main(int argc, const char **argv) {
             } else {
                 quit = ' ';
             }
+        }
+
+        if (!running) {
+            cout << "Closing the connection.\n\n\n" << endl;
         }
 
         signal(SIGINT, SIG_DFL);

@@ -164,7 +164,4 @@ int Socket::receive_message(std::string &buffer) {
 }
 
 // Destructor method
-Socket::~Socket() {
-    std::cout << "Entered Socket destructor" << std::endl;
-    close(this->my_fd);
-}
+Socket::~Socket() { close(this->my_fd); }
