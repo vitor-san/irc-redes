@@ -32,7 +32,7 @@ Caso decidir fazer port-forwarding, lembre-se de registrar seu IP e porta no arq
 - `/mute`: (Comando de administrador) Impede o usuário especificado de mandar mensagens no canal;
 - `/unmute`: (Comando de administrador) Retira o estado criado pelo /mute;
 - `/kick`: (Comando de administrador) Expulsa o usuário especificado do canal atual e o manda para o canal #general;
-- `/invite`: (Comando de administrador) manda um convite para o usuário especificado entrar em um canal (caso o canal seja privado, só usuários que receberam esse convite podem entrar);
+- `/invite`: (Comando de administrador) manda um convite para o usuário especificado entrar no canal do administrador (caso o canal seja _invite-only_, só usuários que receberam esse convite podem entrar);
 - `/whois`: (Comando de administrador) Recebe o IP do usuário especificado (esse comando só funciona se o servidor **NÃO** estiver utilizando tunelamento SSH, caso contrário sempre mostrará o IP `127.0.0.1` para qualquer usuário);
 - `/quit`: O cliente fecha a conexão e fecha a aplicação.
 
