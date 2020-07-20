@@ -3,6 +3,7 @@
 #include <chrono>
 #include <cstdlib>
 #include <iostream>
+#include <map>
 #include <mutex>
 #include <queue>
 #include <set>
@@ -35,14 +36,15 @@ struct msg_info {
 struct Channel {
     client_hash members; // Map a client to their information
     Socket *admin;
-    // bool isInviteOnly;
+    bool isInviteOnly = false;
+    set<string> invited_users; // Set of nicknames
 };
 
 class Server {
   private:
     // Atributes
     Socket listener;
-    set<string> cur_nicknames;
+    map<string, Socket *> users;
     unordered_map<Socket *, string> which_channel;
     unordered_map<string, Channel> channels; // Channel name must have a # in the beginning
     queue<msg_info> msg_queue;               // Queue of messages to send in broadcast
@@ -92,7 +94,7 @@ bool Server::is_valid_nickname(string &nick, Socket *client) {
         return false;
     }
     // In use error
-    if (this->cur_nicknames.find(nick) != this->cur_nicknames.end()) {
+    if (this->users.find(nick) != this->users.end()) {
         // Sends just to this client
         this->send_chunk("Nickname already in use.", client);
         return false;
@@ -121,8 +123,8 @@ bool Server::set_nickname(Socket *client, hash_value &client_tup, string &new_ni
     this->send_to_queue(msg_pack);
 
     // Change the nick
-    this->cur_nicknames.erase(nick(client_tup));
-    this->cur_nicknames.insert(new_nick);
+    this->users.erase(nick(client_tup));
+    this->users.insert(make_pair(new_nick, client));
     nick(client_tup) = new_nick;
 
     return true;
@@ -175,7 +177,7 @@ string Server::assert_nickname(Socket *client) {
         valid = this->is_valid_nickname(nick, client);
     }
     // Register nickname
-    this->cur_nicknames.insert(nick);
+    this->users.insert(make_pair(nick, client));
     // Return the nickname
     return nick;
 }
@@ -240,11 +242,11 @@ void Server::remove_from_channel(Socket *client) {
 
     int members_on_channel = this->channels[my_channel].members.size();
     cout << "ESSE CANAL, DO QUAL EU ACABEI DE REMOVER O CLIENT, TEM AGR TAMANHO: " << members_on_channel << endl;
+
     // If there is nobody on the channel we need to delete it
     if (members_on_channel == 0 && my_channel != "#general") {
         this->channels.erase(my_channel);
     }
-
     // If client is the admin, kick everyone else from the channel
     else if (this->channels[my_channel].admin == client) {
         cout << "O CLIENT REMOVIDO E O ADMIN CARALHO, FUDEUUU" << endl;
@@ -255,6 +257,7 @@ void Server::remove_from_channel(Socket *client) {
             change_channel(member_ptr.first, "#general");
         }
         cout << "AGORA VOU APAGAR O CANAAAAAL PQ O ADMIN SAIUUUUU" << endl;
+
         this->channels.erase(my_channel);
     }
 }
@@ -286,7 +289,17 @@ bool Server::change_channel(Socket *client, string new_channel) {
         c.members.insert(make_pair(client, myself));
         this->channels[new_channel] = c;
     } else {
-        this->channels[new_channel].members.insert(make_pair(client, myself));
+        if (this->channels[new_channel].isInviteOnly) {
+            if (this->channels[new_channel].invited_users.find(nick(myself)) !=
+                this->channels[new_channel].invited_users.end()) {
+                this->channels[new_channel].members.insert(make_pair(client, myself));
+            } else {
+                // User was not invited to this channel
+                this->send_chunk("TÁ MALUCO?! Cê não foi convidado, zé ruela!!", client);
+            }
+        } else {
+            this->channels[new_channel].members.insert(make_pair(client, myself));
+        }
     }
     this->which_channel[client] = new_channel;
 
@@ -329,7 +342,7 @@ Server::Server(int port) : listener("any", port) {
  */
 void Server::receive(Socket *client) {
 
-    string buffer, cmd, new_nick, new_channel, target_user;
+    string buffer, cmd, new_nick, new_channel, target_user, mode_args;
     regex r(RGX_CMD); // RGX_CMD defined in "utils.hpp"
     smatch m;
     msg_info msg_pack;
@@ -376,7 +389,7 @@ void Server::receive(Socket *client) {
             if (cmd == "quit") {
                 set_alive(*myself, false);
                 // Erase their nickname from the server
-                this->cur_nicknames.erase(my_nick);
+                this->users.erase(my_nick);
                 cout << "Client " << my_nick << " quited" << endl; // Log
             } else if (cmd == "ping") {
                 // Send "pong" to the client
@@ -415,47 +428,83 @@ void Server::receive(Socket *client) {
             }
             // The client can only do the following commands if they are an admin
             else if (client == this->channels[my_channel].admin) {
-                // Get the target to apply the command to
-                target_user = m[2].str();
-                bool found = false;
-
-                Socket *target;
-                // Tries to find the user in the channel
-                for (auto &mem_ptr : this->channels[my_channel].members) {
-                    if (nick(mem_ptr.second) == target_user) {
-                        found = true;
-                        target = mem_ptr.first;
-                        break;
-                    }
-                }
-                if (!found) {
-                    this->send_chunk("The requested user is not on this channel!", client);
-                } else {
-                    hash_value &target_tup = this->channels[my_channel].members[target];
-                    // Check if the target of the command is the user itself
-                    if (client == target) {
-                        this->send_chunk("You can't target yourself using an admin command", client);
-                    }
-
-                    else {
-                        if (cmd == "kick") {
-                            this->change_channel(target, "#general");
-                            this->send_chunk(my_nick + " kicked you from the channel.", client);
-                            this->channel_notification(my_channel,
-                                                       string(nick(target_tup) + " has been kicked from the channel."));
-                        } else if (cmd == "mute") {
-                            muted(target_tup) = true;
-                            this->channel_notification(my_channel, string(nick(target_tup) + " has been muted."));
-                        } else if (cmd == "unmute") {
-                            muted(target_tup) = false;
-                            this->channel_notification(my_channel, string(nick(target_tup) + " has been unmuted."));
-                        } else if (cmd == "whois") {
-                            string target_ip = target->get_IP_address();
-                            this->send_chunk("User " + nick(target_tup) + " has the IP address " + target_ip + ".",
+                if (cmd == "mode") {
+                    mode_args = m[2].str();
+                    if (mode_args == "+i") {
+                        this->channels[my_channel].isInviteOnly = true;
+                    } else if (mode_args == "-i") {
+                        this->channels[my_channel].isInviteOnly = false;
+                    } else {
+                        this->send_chunk("Usage form: /mode (+|-)i", client);
+                        if (mode_args[0] != '+' || mode_args[0] != '-') {
+                            this->send_chunk("You can only add (+) or delete (-) a mode from a channel", client);
+                        }
+                        if (mode_args[1] != 'i') {
+                            this->send_chunk("The only mode that you can use in this channel is 'i' (invite only)",
                                              client);
                         }
                     }
+                } else {
+                    // Get the target to apply the command to
+                    target_user = m[2].str();
+                    bool found = false;
+
+                    Socket *target;
+                    // Tries to find the user in the channel
+                    for (auto &mem_ptr : this->channels[my_channel].members) {
+                        if (nick(mem_ptr.second) == target_user) {
+                            found = true;
+                            target = mem_ptr.first;
+                            break;
+                        }
+                    }
+                    if (!found) {
+                        if (cmd == "invite") {
+                            // Only proceed if the user exists in the server
+                            if (this->users.find(target_user) != this->users.end()) {
+
+                                if (this->channels[my_channel].isInviteOnly) {
+                                    this->channels[my_channel].invited_users.insert(target_user);
+                                }
+                                this->send_chunk(my_nick + " invited you to join channel " + my_channel,
+                                                 this->users[target_user]);
+                                this->send_chunk(target_user + " invited to join this channel!", client);
+                            } else {
+                                this->send_chunk(target_user + " does not exists...", client);
+                            }
+                        } else {
+                            this->send_chunk("The requested user is not on this channel!", client);
+                        }
+                    } else {
+                        hash_value &target_tup = this->channels[my_channel].members[target];
+                        // Check if the target of the command is the user itself
+                        if (client == target) {
+                            this->send_chunk("You can't target yourself using an admin command", client);
+                        } else {
+                            if (cmd == "kick") {
+                                this->change_channel(target, "#general");
+                                this->send_chunk(my_nick + " kicked you from the channel.", target);
+                                this->channel_notification(
+                                    my_channel, string(nick(target_tup) + " has been kicked from the channel."));
+                            } else if (cmd == "mute") {
+                                muted(target_tup) = true;
+                                this->channel_notification(my_channel, string(nick(target_tup) + " has been muted."));
+                            } else if (cmd == "unmute") {
+                                muted(target_tup) = false;
+                                this->channel_notification(my_channel, string(nick(target_tup) + " has been unmuted."));
+                            } else if (cmd == "whois") {
+                                string target_ip = target->get_IP_address();
+                                this->send_chunk("User " + nick(target_tup) + " has the IP address " + target_ip + ".",
+                                                 client);
+                            } else if (cmd == "invite") {
+                                this->send_chunk(target_user + " is already in the channel!", client);
+                            }
+                        }
+                    }
                 }
+            } else if (cmd == "invite") {
+                // You can't use invite command if you're not the admin
+                this->send_chunk("You can't use invite command if you're not the admin of the channel", client);
             }
         } else {
             // The server just got a regular message
@@ -541,8 +590,24 @@ void Server::broadcast() {
                     string c_name = this->which_channel[next_msg_pack.sender];
                     // Get sender status
                     hash_value &sender = this->channels[c_name].members[next_msg_pack.sender];
+                    // If the sender is the admin of the channel
+                    if (next_msg_pack.sender == this->channels[c_name].admin) {
+                        // Send it to everyone on that channel...
+                        for (auto it = this->channels[c_name].members.begin();
+                             it != this->channels[c_name].members.end(); it++) {
+                            hash_value &client = this->channels[c_name].members[it->first];
+                            // If they are allowed to.
+                            if (allowed(client)) {
+                                success = this->send_chunk("@" + next_msg_pack.content, it->first);
+                                // If we could not send the message to the client, it has quitted from the server
+                                if (!success) {
+                                    alive(client) = false;
+                                }
+                            }
+                        }
+                    }
                     // If the sender is not muted...
-                    if (!muted(sender)) {
+                    else if (!muted(sender)) {
                         // Send it to everyone on that channel...
                         for (auto it = this->channels[c_name].members.begin();
                              it != this->channels[c_name].members.end(); it++) {
