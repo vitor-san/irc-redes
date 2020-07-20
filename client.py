@@ -78,7 +78,6 @@ def enter_pressed(event):
     input_get = input_field.get()
     print(input_get)
     cli.sendline(input_get)
-    cli.getline()
     user_input.set('')
     return "break"
 
