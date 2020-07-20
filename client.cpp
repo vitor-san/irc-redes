@@ -151,7 +151,6 @@ int main(int argc, const char **argv) {
     nick_file >> nickname;
     has_initial_nick = nickname.size() == 0 ? false : true;
 
-    system("clear");
     cout << "Welcome to GG Club.\n\n";
 
     if (!has_initial_nick) {
@@ -182,17 +181,14 @@ int main(int argc, const char **argv) {
             // Get the IP and the port from the DNS table
             is_in_table = connect_to(DNS, server_name, server_ip, server_port);
             if (!is_in_table) {
-                // system("clear");
                 cout << "\nCould not find the specified server in our DNS table.\n\n";
                 continue;
             }
             cmd.clear();
         } else if (cmd == "list") {
-            // system("clear");
             list_servers(DNS);
             continue;
         } else {
-            // system("clear");
             cout << "Please, provide a valid command for starting.\n\n";
             continue;
         }
@@ -202,7 +198,6 @@ int main(int argc, const char **argv) {
         connected = my_socket->connect_to_address();
 
         if (connected) {
-            system("clear");
             // Register signal SIGINT and signal handler
             signal(SIGINT, handleCtrlC);
             // Create two threads, one for receiving and one for sending messages
@@ -216,7 +211,6 @@ int main(int argc, const char **argv) {
             while (quit != 'y' && quit != 'n') {
                 cout << "Do you wanna quit? (y/n)" << endl;
                 cin >> quit;
-                system("clear");
             }
             if (quit == 'y') {
                 delete my_socket;
@@ -228,7 +222,6 @@ int main(int argc, const char **argv) {
 
         signal(SIGINT, SIG_DFL);
         delete my_socket;
-        system("clear");
     }
 
     return 0;

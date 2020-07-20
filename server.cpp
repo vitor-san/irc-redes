@@ -58,7 +58,7 @@ class Server {
     bool is_valid_nickname(string &nick, Socket *client);
     string prepare_msg(string &chunk, Socket *client);
     bool send_chunk(string chunk, Socket *client);
-    void send_to_queue(msg_info &pack);
+    void send_to_queue(msg_info pack);
     void remove_from_channel(Socket *client);
     bool change_channel(Socket *client, string new_channel);
     void channel_notification(string c_name, string notification);
@@ -117,14 +117,14 @@ bool Server::set_nickname(Socket *client, hash_value &client_tup, string &new_ni
         return false;
 
     // Notice to everyone the change
-    msg_info msg_pack;
-    msg_pack.content = "User " + nick(client_tup) + " changed his nickname to " + new_nick + ".";
-    msg_pack.sender = client;
-    this->send_to_queue(msg_pack);
+    string my_channel = this->which_channel[client];
+    this->channel_notification(my_channel, "User " + nick(client_tup) + " changed his nickname to " + new_nick + ".");
 
     // Change the nick
     this->users.erase(nick(client_tup));
     this->users.insert(make_pair(new_nick, client));
+    this->channels[my_channel].invited_users.erase(nick(client_tup));
+    this->channels[my_channel].invited_users.insert(new_nick);
     nick(client_tup) = new_nick;
 
     return true;
@@ -227,7 +227,7 @@ bool Server::send_chunk(string chunk, Socket *client) {
  *  Parameters:
  *      msg_info& pack: the message to be pushed
  */
-void Server::send_to_queue(msg_info &pack) {
+void Server::send_to_queue(msg_info pack) {
     // Prevent conflicts
     this->mtx.lock();
     this->msg_queue.push(pack);
@@ -237,11 +237,15 @@ void Server::send_to_queue(msg_info &pack) {
 void Server::remove_from_channel(Socket *client) {
 
     string my_channel = this->which_channel[client];
+    string my_nick = nick(this->channels[my_channel].members[client]);
 
+    // Remove they from the channel
+    if (this->channels[my_channel].isInviteOnly) {
+        this->channels[my_channel].invited_users.erase(my_nick);
+    }
     this->channels[my_channel].members.erase(client);
 
     int members_on_channel = this->channels[my_channel].members.size();
-    cout << "ESSE CANAL, DO QUAL EU ACABEI DE REMOVER O CLIENT, TEM AGR TAMANHO: " << members_on_channel << endl;
 
     // If there is nobody on the channel we need to delete it
     if (members_on_channel == 0 && my_channel != "#general") {
@@ -252,8 +256,7 @@ void Server::remove_from_channel(Socket *client) {
     else if (this->channels[my_channel].admin == client) {
         Socket *new_adm = this->channels[my_channel].members.begin()->first;
         this->channels[my_channel].admin = new_adm;
-        string new_adm_name = nick(this->channels[my_channel].members.begin()->second);
-        // this->channel_notification(my_channel, new_adm_name + " is the new adm");
+        this->send_chunk("You are now the new admin of the channel!", new_adm);
     }
 }
 
@@ -306,6 +309,7 @@ bool Server::change_channel(Socket *client, string new_channel) {
 }
 
 void Server::channel_notification(string c_name, string notification) {
+
     if ((int)notification.size() == 0)
         return;
 
@@ -386,10 +390,9 @@ void Server::receive(Socket *client) {
         if (cmd != "") {
             if (cmd == "quit") {
                 this->remove_from_channel(client);
-                this->users.erase(my_nick);
-                set_alive(*myself, false);
                 // Erase their nickname from the server
                 this->users.erase(my_nick);
+                set_alive(*myself, false);
                 cout << "Client " << my_nick << " quited" << endl; // Log
             } else if (cmd == "ping") {
                 // Send "pong" to the client
@@ -523,12 +526,7 @@ void Server::receive(Socket *client) {
     }
 
     cout << "Connection closed with client " << my_nick << endl;
-
-    msg_pack.content = "User " + my_nick + " has disconnected from the server...";
-    msg_pack.sender = client;
-    this->send_to_queue(msg_pack);
-
-    this->channels[my_channel].members.erase(client);
+    this->channel_notification(my_channel, "User " + my_nick + " has disconnected from the server...");
 }
 
 /*
@@ -608,7 +606,7 @@ void Server::broadcast() {
                             }
                         }
                     }
-                    // If the sender is not muted...
+                    // If the sender is not the admin and is not muted...
                     else if (!muted(sender)) {
                         // Send it to everyone on that channel...
                         for (auto it = this->channels[c_name].members.begin();
